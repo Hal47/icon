@@ -140,9 +140,30 @@ static void PatchI24() {
 
     // costume unlock BS
     //bmagic(0x0045828B, 0xc35bc032, 0xc35b01b0);
+    bmagic(0x00458273, 0x950fc084, 0x950f91eb);
+    bmagic(0x00458206, 0xcccccccc, 0x75433e81);
+    bmagic(0x0045820a, 0xcccccccc, 0x6e757473);
+    bmagic(0x0045820e, 0x5553cccc, 0x555368eb);
 
-    if (editnpc)
+    // don't show "hide store pieces" box
+    bmagic(0x00719FE5, 2, 1);
+
+    if (editnpc) {
 	bmagicc(0x00BE4020, 0xa75dd4, 9);
+
+	// don't skip origin menu
+	bmagic(0x0077E255, 0x3d833574, 0x3d8335eb);
+
+	// don't skip playstyle menu
+	bmagic(0x0077ECFC, 0x35891274, 0x358912eb);
+
+	// don't skip archetype menu
+	bmagic(0x0076D222, 0x3d833074, 0x3d8330eb);
+
+	// don't skip power selection
+	bmagic(0x0078151F, 0x03da840f, 0x0003dbe9);
+	bmagic(0x00781523, 0x74a10000, 0x74a19000);
+    }
 }
 
 static void PatchI23() {
@@ -164,8 +185,31 @@ static void PatchI23() {
     // owns product?
     bmagic(0x0083408B, 0xff853a74, 0x5aeb01b0);
 
-    if (editnpc)
+    // costume unlock BS
+    bmagic(0x00458183, 0x950fc084, 0x950f91eb);
+    bmagic(0x00458116, 0xcccccccc, 0x75433e81);
+    bmagic(0x0045811a, 0xcccccccc, 0x6e757473);
+    bmagic(0x0045811e, 0x5553cccc, 0x555368eb);
+
+    // don't show "hide store pieces" box
+    bmagic(0x0071A095, 2, 1);
+
+    if (editnpc) {
 	bmagicc(0x00BE1C8C, 0xa77cf4, 9);
+
+	// don't skip origin menu
+	bmagic(0x00780A05, 0x3d833574, 0x3d8335eb);
+
+	// don't skip playstyle menu
+	bmagic(0x007814AD, 0x35891274, 0x358912eb);
+
+	// don't skip archetype menu
+	bmagic(0x0076F9F2, 0x3d833074, 0x3d8330eb);
+
+	// don't skip power selection
+	bmagic(0x00783DC0, 0x03da840f, 0x0003dbe9);
+	bmagic(0x00783DC4, 0x8ca10000, 0x8ca19000);
+    }
 }
 
 static void RunPatch() {
