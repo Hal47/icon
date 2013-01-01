@@ -100,12 +100,8 @@ static void PutInt(unsigned int addr, unsigned int val) {
 }
 
 static void bmagic(unsigned int addr, int oldval, int newval) {
-    if (GetInt(addr) != oldval) {
-	char blah[512];
-	snprintf(blah, 512, "%x", addr);
-	MessageBox(NULL, blah, "Blah", MB_OK);
+    if (GetInt(addr) != oldval)
 	Bailout("Sorry, your cityofheroes.exe file is not a supported version.");
-    }
     PutInt(addr, newval);
 }
 

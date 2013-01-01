@@ -3,7 +3,7 @@ CFLAGS=-Os
 WINDRES=mingw32-windres
 
 icon.exe: icon.o icon.rc.o
-	$(CC) $(CFLAGS) -mwindows icon.o -lcomdlg32 -o icon.exe
+	$(CC) $(CFLAGS) -mwindows icon.o icon.rc.o -lcomdlg32 -o icon.exe
 	mingw32-strip icon.exe
 
 #icon.exe: icon.o iconres.o
