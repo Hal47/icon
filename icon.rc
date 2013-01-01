@@ -1,0 +1,31 @@
+#define IDR_MANIFEST 1
+#define AppIconID 1
+#define RT_MANIFEST 24
+1 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "Titan Network"
+      VALUE "FileDescription", ""
+      VALUE "FileVersion", "1.00"
+      VALUE "InternalName", "Icon"
+      VALUE "LegalCopyright", "Titan Network"
+      VALUE "OriginalFilename", "icon.exe"
+      VALUE "ProductName", "Icon"
+      VALUE "ProductVersion", "1.00"
+    END
+  END
+
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END
+
+AppIconID ICON "icon.ico"
+
+IDR_MANIFEST RT_MANIFEST "application.manifest"

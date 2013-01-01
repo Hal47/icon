@@ -9,10 +9,8 @@ int editnpc = 0;
 
 // void ReadPE();
 static void RunPatch();
+static void PromptUserForCohLocation();
 PROCESS_INFORMATION pinfo;
-
-const char *fstring = "textparserdebug\r\ncreatehero\r\n";
-const char *nstring = "editnpc 1\r\n";
 
 static int Bailout(char *error) {
     if (pinfo.hProcess)
@@ -52,31 +50,25 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance,
     if (!stricmp(szCmdParam, "-n"))
 	editnpc = 1;
 
+    // First check to see if the file exists.
+    //
+    while (GetFileAttributes("cityofheroes.exe") == INVALID_FILE_ATTRIBUTES) {
+	PromptUserForCohLocation();
+    }
+
     STARTUPINFO startup;
     memset(&startup, 0, sizeof(startup));
     startup.cb = sizeof(STARTUPINFO);
     memset(&pinfo, 0, sizeof(pinfo));
 
-    if(!CreateProcess("cityofheroes.exe", "cityofheroes.exe -project coh -startupexec charcreate.txt", NULL, NULL, FALSE, CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED | DETACHED_PROCESS, NULL, NULL, &startup, &pinfo)) {
+    if(!CreateProcess("cityofheroes.exe", "cityofheroes.exe -project coh -noverify", NULL, NULL, FALSE, CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED | DETACHED_PROCESS, NULL, NULL, &startup, &pinfo)) {
 	MessageBox(NULL, "Failed to launch process!", "Error", MB_OK | MB_ICONEXCLAMATION);
 	return 0;
     }
 
-    CreateDirectory("data", NULL);
-    h = CreateFile("data\\charcreate.txt", GENERIC_WRITE,
-	    0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
-	    NULL);
-    if (h == INVALID_HANDLE_VALUE)
-	WBailout("Could not create data\\charcreate.txt");
-
-    if (editnpc) {
-	if (!WriteFile(h, nstring, strlen(nstring), &didwrite, NULL))
-	    WBailout("Could not write to data\\charcreate.txt");
-    }
-    if (!WriteFile(h, fstring, strlen(fstring), &didwrite, NULL))
-	WBailout("Could not write to data\\charcreate.txt");
-
-    CloseHandle(h);
+    // delete old crap previous version used
+    if (GetFileAttributes("data\\charcreate.txt"))
+	DeleteFile("data\\charcreate.txt");
 
     //ReadPE();
     RunPatch();
@@ -108,38 +100,37 @@ static void PutInt(unsigned int addr, unsigned int val) {
 }
 
 static void bmagic(unsigned int addr, int oldval, int newval) {
-    if (GetInt(addr) != oldval)
-	Bailout("Black magic failure!");
+    if (GetInt(addr) != oldval) {
+	char blah[512];
+	snprintf(blah, 512, "%x", addr);
+	MessageBox(NULL, blah, "Blah", MB_OK);
+	Bailout("Sorry, your cityofheroes.exe file is not a supported version.");
+    }
     PutInt(addr, newval);
 }
 
 static void bmagicc(unsigned int addr, int oldaddr, int oldalevel) {
     if (GetInt(addr) != oldaddr || GetInt(addr - 4) != oldalevel)
-	Bailout("Black magic failure!");
+	Bailout("Sorry, your cityofheroes.exe file is not a supported version.");
     PutInt(addr - 4, 0);
 }
 
 static void PatchI24() {
-    // exec
-    bmagicc(0x00BE38BC, 0xa76044, 9);
-
-    // startupexec
-    bmagicc(0x00BE3968, 0xa76020, 9);
-
-    // textparserdebug
-    bmagicc(0x00BF457C, 0xa70090, 9);
-
-    // CALL for textparserdebug
-    bmagic(0x0041A621, 0x45940b, 0x0b1afb);
-
     // product published?
     bmagic(0x00830259, 0xc032cc33, 0x01b0cc33);
 
     // owns product?
     bmagic(0x0083147B, 0xff853a74, 0x5aeb01b0);
 
+    // create character
+    bmagic(0x0083B246, 0x0410ec81, 0xc90ed5e8);
+    bmagic(0x0083B24a, 0x84a10000, 0xbb80e8ff);
+    bmagic(0x0083B24e, 0x3300b1ba, 0x05c7ffee);
+    bmagic(0x0083B252, 0x248489c4, 0x0167c800);
+    bmagic(0x0083B256, 0x0000040c, editnpc);
+    bmagic(0x0083B25a, 0xc6c83d80, 0xc35dec89);
+
     // costume unlock BS
-    //bmagic(0x0045828B, 0xc35bc032, 0xc35b01b0);
     bmagic(0x00458273, 0x950fc084, 0x950f91eb);
     bmagic(0x00458206, 0xcccccccc, 0x75433e81);
     bmagic(0x0045820a, 0xcccccccc, 0x6e757473);
@@ -149,8 +140,6 @@ static void PatchI24() {
     bmagic(0x00719FE5, 2, 1);
 
     if (editnpc) {
-	bmagicc(0x00BE4020, 0xa75dd4, 9);
-
 	// don't skip origin menu
 	bmagic(0x0077E255, 0x3d833574, 0x3d8335eb);
 
@@ -167,23 +156,25 @@ static void PatchI24() {
 }
 
 static void PatchI23() {
-    // exec
-    bmagicc(0x00BE1528, 0xa77f64, 9);
-
-    // startupexec
-    bmagicc(0x00BE15D4, 0xa77f40, 9);
-
-    // textparserdebug
-    bmagicc(0x00BF213C, 0xa72010, 9);
-
-    // CALL for textparserdebug
-    bmagic(0x0041A581, 0x45cddb, 0x0b0d9b);
-
     // product published?
     bmagic(0x00832f09, 0xc032cc33, 0x01b0cc33);
 
     // owns product?
     bmagic(0x0083408B, 0xff853a74, 0x5aeb01b0);
+
+    // create character
+/*    bmagic(0x0083DDD6, 0x0410ec81, 0x89a405c7);
+    bmagic(0x0083DDDA, 0x84a10000, editnpc ? 0x00010168 : 0x00000167);
+    bmagic(0x0083DDDE, 0x3300b1ba, 0x3be80000);
+    bmagic(0x0083DDE2, 0x248489c4, 0xe8ffc8d5);
+    bmagic(0x0083DDE6, 0x0000040c, 0xffee9216);
+    bmagic(0x0083DDEA, 0x88683d80, 0xc35dec89); */
+    bmagic(0x0083DDD6, 0x0410ec81, 0xc8d545e8);
+    bmagic(0x0083DDDA, 0x84a10000, 0x9220e8ff);
+    bmagic(0x0083DDDE, 0x3300b1ba, 0x05c7ffee);
+    bmagic(0x0083DDE2, 0x248489c4, 0x016789a4);
+    bmagic(0x0083DDE6, 0x0000040c, editnpc);
+    bmagic(0x0083DDEA, 0x88683d80, 0xc35dec89);
 
     // costume unlock BS
     bmagic(0x00458183, 0x950fc084, 0x950f91eb);
@@ -195,8 +186,6 @@ static void PatchI23() {
     bmagic(0x0071A095, 2, 1);
 
     if (editnpc) {
-	bmagicc(0x00BE1C8C, 0xa77cf4, 9);
-
 	// don't skip origin menu
 	bmagic(0x00780A05, 0x3d833574, 0x3d8335eb);
 
@@ -220,5 +209,30 @@ static void RunPatch() {
     else if (GetInt(0x00BE38BC) == 0xa76044)
 	PatchI24();
     else
-	Bailout("Unrecognized version.");
+	Bailout("Sorry, your cityofheroes.exe file is not a supported version.");
+}
+
+static void PromptUserForCohLocation() {
+    OPENFILENAME ofn;
+    char szFile[1024];
+    HANDLE h;
+
+    MessageBox(NULL, "We couldn't find a cityofheroes.exe file in the current directory.\n\nPlease select the game installation that you wish to use.", "Titan Icon", MB_OK);
+
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.lpstrFile = szFile;
+    ofn.lpstrFile[0] = 0;
+    ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrFilter = "Cityofheroes.exe\0cityofheroes.exe\0";
+    ofn.nFilterIndex = 0;
+    ofn.lpstrFileTitle = NULL;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = NULL;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_DONTADDTORECENT;
+
+    if (GetOpenFileName(&ofn) == FALSE)
+	exit(0);
+
+
 }
