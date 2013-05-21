@@ -1,13 +1,10 @@
 CC=mingw32-gcc
-CFLAGS=-Os
+CFLAGS=-Os -Wall
 WINDRES=mingw32-windres
 
 icon.exe: icon.o icon.rc.o
 	$(CC) $(CFLAGS) -mwindows icon.o icon.rc.o -lcomdlg32 -o icon.exe
 	mingw32-strip icon.exe
-
-#icon.exe: icon.o iconres.o
-#	$(CC) $(CFLAGS) -mwindows icon.o iconres.o -o icon.exe
 
 icon.o: icon.c
 	$(CC) $(CFLAGS) -c icon.c -o icon.o
