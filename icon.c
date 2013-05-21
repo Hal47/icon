@@ -7,7 +7,6 @@
 
 int editnpc = 0;
 
-// void ReadPE();
 static void RunPatch();
 static void PromptUserForCohLocation();
 PROCESS_INFORMATION pinfo;
