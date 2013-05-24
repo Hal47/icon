@@ -23,17 +23,32 @@ enum {
     CODE_FRAME_HOOK,
 };
 
+enum {
+    RELOC_ICON_STR,
+    RELOC_ICON_DATA,
+    RELOC_ICON_CODE_ABS,
+    RELOC_ICON_CODE_REL,
+    RELOC_COH_ABS,
+    RELOC_COH_REL,
+};
+
+typedef struct {
+    unsigned long type;
+    unsigned long id;
+} reloc;
+
 typedef struct {
     unsigned long offset;
     unsigned long len;
     unsigned char *code;
+    reloc *relocs;
 } codedef;
 
 extern DWORD iconCodeBase;
 extern codedef icon_code[];
 
-void WriteIconCode();
-void CalculateIconOffsets();
-void FixupIconOffsets();
-void FixupI24Offsets();
-void FixupI23Offsets();
+#define CODE_OFF(id) (icon_code[id].offset)
+
+void CalcCodeOffsets();
+void RelocateCode();
+void WriteCode();

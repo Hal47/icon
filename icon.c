@@ -79,16 +79,11 @@ static void RunPatch() {
 	Bailout("Sorry, your cityofheroes.exe file is not a supported version.");
 
     AllocIconMem();
-    CalculateIconOffsets();
+    CalcCodeOffsets();
     WriteIconStrings();
     WriteIconData();
-    FixupIconOffsets();
-    if (vers == 23)
-	FixupI23Offsets();
-    else if (vers == 24)
-	FixupI24Offsets();
-
-    WriteIconCode();
+    RelocateCode();
+    WriteCode();
 
     if (vers == 23)
 	PatchI23();

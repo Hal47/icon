@@ -13,6 +13,9 @@
 
 DWORD iconCodeBase = 0;
 
+// Magic sequence to mark a reloc in code
+#define RELOC 0xDE,0xAD,0xAD,0xD0
+
 static unsigned char code_enter_game[] = {
 0x60,		                    // 0000 PUSHAD
 0x8B,0x0D,0x00,0x00,0x00,0x00,      // 0001 MOV ECX,DWORD PTR [$start_choice]
@@ -282,22 +285,24 @@ unsigned char code_loadmap_cb[] = {
 0xC3,                               // RETN
 };
 
+#define CODE(c, r) { 0, sizeof(c), c, r }
 codedef icon_code[] = {
-    { 0, sizeof(code_enter_game), code_enter_game },
-    { 0, sizeof(code_generic_mov), code_generic_mov },
-    { 0, sizeof(code_get_target), code_get_target },
-    { 0, sizeof(code_key_hook), code_key_hook },
-    { 0, sizeof(code_key_fly), code_key_fly },
-    { 0, sizeof(code_key_torch), code_key_torch },
-    { 0, sizeof(code_key_nocoll), code_key_nocoll },
-    { 0, sizeof(code_key_seeall), code_key_seeall },
-    { 0, sizeof(code_key_detach), code_key_detach },
-    { 0, sizeof(code_key_loadmap), code_key_loadmap },
-    { 0, sizeof(code_loadmap_cb), code_loadmap_cb },
-    { 0, 0, 0 }
+    CODE(code_enter_game, NULL),
+    CODE(code_generic_mov, NULL),
+    CODE(code_get_target, NULL),
+    CODE(code_key_hook, NULL),
+    CODE(code_key_fly, NULL),
+    CODE(code_key_torch, NULL),
+    CODE(code_key_nocoll, NULL),
+    CODE(code_key_seeall, NULL),
+    CODE(code_key_detach, NULL),
+    CODE(code_key_loadmap, NULL),
+    CODE(code_loadmap_cb, NULL),
+    { 0, 0, 0, 0 }
 };
+#undef CODE
 
-void WriteIconCode() {
+void WriteCode() {
     codedef *c;
     DWORD o;
 
@@ -314,7 +319,7 @@ void WriteIconCode() {
     }
 }
 
-void CalculateIconOffsets() {
+void CalcCodeOffsets() {
     codedef *cd;
     int i;
     DWORD o;
@@ -332,7 +337,7 @@ void CalculateIconOffsets() {
 #define SETBYTE(a, x) ((*(c+(a))) = (x))
 #define SETLONG(a, x) ((*(unsigned long*)(c+(a))) = (unsigned long)(x))
 #define SETCALL(a, x) (SETLONG((a), CalcRelAddr(iconCodeBase + cd->offset + (a), (x))))
-void FixupIconOffsets() {
+static void FixupIconOffsets() {
     codedef *cd;
     unsigned char *c;
     // Fixup enter_game
@@ -369,7 +374,7 @@ void FixupIconOffsets() {
     SETLONG(0x001D, iconStrBase + iconStrOffsets[STR_MAPFILE]);
 }
 
-void FixupI24Offsets() {
+static void FixupI24Offsets() {
     codedef *cd;
     unsigned char *c;
     unsigned long load_map_demo = 0x00535650;
@@ -465,5 +470,7 @@ void FixupI24Offsets() {
     SETCALL(0x0010, load_map_demo);
 }
 
-void FixupI23Offsets() {
+void RelocateCode() {
+    FixupIconOffsets();
+    FixupI24Offsets();
 }
