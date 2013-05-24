@@ -10,6 +10,46 @@
 #include "code.h"
 #include "patch.h"
 
+typedef struct {
+    int id;
+    DWORD addr;
+} addrmap;
+
+static DWORD addrmap_cache[COH_END];
+
+static addrmap addrs_i23[] = {
+    { 0, 0 }
+};
+
+static addrmap addrs_i24[] = {
+    { COHVAR_PLAYER_ENT, 0x00CAF580 },
+    { COHFUNC_DIALOG, 0x005B6E10 },
+    { 0, 0 }
+};
+
+void InitCoh(int vers) {
+    addrmap *am;
+
+    ZeroMemory(addrmap_cache, sizeof(addrmap_cache));
+    if (vers == 23)
+        am = addrs_i23;
+    else if (vers == 24)
+        am = addrs_i24;
+    else {
+        Bailout("An impossible thing happened! Check that the laws of physics are still working.");
+        return;
+    }
+
+    while (am && am->addr) {
+        addrmap_cache[am->id] = am->addr;
+        ++am;
+    }
+}
+
+unsigned long CohAddr(int id) {
+    return addrmap_cache[id];
+}
+
 void PatchI24() {
     // product published?
     bmagic(0x00830259, 0xc032cc33, 0x01b0cc33);
@@ -73,14 +113,14 @@ void PatchI24() {
 
     // hook keyboard
     bmagic(0x005C94E0, 0xE37F64A1, 0x000000E8);
-    PutRelAddr(0x005C94E1, iconCodeBase + icon_code[CODE_KEY_HOOK].offset);
+    PutRelAddr(0x005C94E1, CodeAddr(CODE_KEY_HOOK));
 
     // turn on invert mouse
     bmagic(0x00B34E00, 0, 1);
 
     // Hook "enter game"
     bmagic(0x004CC608, 0xA1000003, 0xE8000003);
-    PutRelAddr(0x004CC60C, iconCodeBase + icon_code[CODE_ENTER_GAME].offset);
+    PutRelAddr(0x004CC60C, CodeAddr(CODE_ENTER_GAME));
     bmagic(0x004CC610, 0xC01BD8F7, 0xC4A3C031);
     bmagic(0x004CC614, 0x83A6E083, 0xE9012DF3);
     bmagic(0x004CC618, 0x44895AC0, 0x00000390);
@@ -89,7 +129,7 @@ void PatchI24() {
     bmagic(0x00440D3C, 0xD8C08310, 0x81C08310);
     bmagic(0x00440D80, 0x74C08500, 0xEBC08500);
     bmagic(0x00440DE0, 0xA1302444, 0xE8302444);
-    PutRelAddr(0x00440DE4, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
+    PutRelAddr(0x00440DE4, CodeAddr(CODE_GET_TARGET));
     bmagic(0x00440DFC, 0x4440D921, 0x5C40D921);
     bmagic(0x00440E00, 0xD920488D, 0xD938488D);
     bmagic(0x00440E0C, 0x5CD94840, 0x5CD96040);
@@ -109,10 +149,10 @@ void PatchI24() {
     bmagic(0x00440FE4, 0xFF3D80FF, 0xFF3D8090);
     bmagic(0x00440FEC, 0x30A13E74, 0x85E83E74);
     bmagic(0x00440FF0, 0x83016131, 0x8311F046);
-    PutRelAddr(0x00440FEF, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
+    PutRelAddr(0x00440FEF, CodeAddr(CODE_GET_TARGET));
     bmagic(0x00440FF4, 0x748D20C0, 0x748D38C0);
     bmagic(0x00440FFC, 0xD90042AB, 0xE80042AB);
-    PutRelAddr(0x00441000, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
+    PutRelAddr(0x00441000, CodeAddr(CODE_GET_TARGET));
     bmagic(0x00441004, 0x6131300D, 0x548DC189);
     bmagic(0x00441008, 0x4459D901, 0x81E834E4);
     bmagic(0x0044100C, 0x3130158B, 0xEB000727);

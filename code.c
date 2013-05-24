@@ -11,7 +11,31 @@
 #include "data.h"
 #include "strings.h"
 
-DWORD iconCodeBase = 0;
+static DWORD iconCodeBase = 0;
+
+enum {
+    RELOC_ICON_STR,
+    RELOC_ICON_DATA,
+    RELOC_ICON_CODE_ABS,
+    RELOC_ICON_CODE_REL,
+    RELOC_COH_ABS,
+    RELOC_COH_REL,
+};
+
+typedef struct {
+    int type;
+    int id;
+} reloc;
+
+typedef struct {
+    int id;
+    DWORD offset;
+    int sz;
+    unsigned char *code;
+    reloc *relocs;
+} codedef;
+
+static codedef **codedef_cache = 0;
 
 // Magic sequence to mark a reloc in code
 #define RELOC 0xDE,0xAD,0xAD,0xD0
@@ -285,98 +309,104 @@ unsigned char code_loadmap_cb[] = {
 0xC3,                               // RETN
 };
 
-#define CODE(c, r) { 0, sizeof(c), c, r }
+#define CODE(id, c, r) { CODE_##id, 0, sizeof(c), c, r }
 codedef icon_code[] = {
-    CODE(code_enter_game, NULL),
-    CODE(code_generic_mov, NULL),
-    CODE(code_get_target, NULL),
-    CODE(code_key_hook, NULL),
-    CODE(code_key_fly, NULL),
-    CODE(code_key_torch, NULL),
-    CODE(code_key_nocoll, NULL),
-    CODE(code_key_seeall, NULL),
-    CODE(code_key_detach, NULL),
-    CODE(code_key_loadmap, NULL),
-    CODE(code_loadmap_cb, NULL),
+    CODE(ENTER_GAME, code_enter_game, NULL),
+    CODE(GENERIC_MOV, code_generic_mov, NULL),
+    CODE(GET_TARGET, code_get_target, NULL),
+    CODE(KEY_HOOK, code_key_hook, NULL),
+    CODE(KEY_FLY, code_key_fly, NULL),
+    CODE(KEY_TORCH, code_key_torch, NULL),
+    CODE(KEY_NOCOLL, code_key_nocoll, NULL),
+    CODE(KEY_SEEALL, code_key_seeall, NULL),
+    CODE(KEY_DETACH, code_key_detach, NULL),
+    CODE(KEY_LOADMAP, code_key_loadmap, NULL),
+    CODE(LOADMAP_CB, code_loadmap_cb, NULL),
     { 0, 0, 0, 0 }
 };
 #undef CODE
 
+static void InitCode() {
+    DWORD o = 0;
+
+    iconCodeBase = (DWORD)VirtualAllocEx(pinfo.hProcess, NULL, ICON_CODE_SIZE,
+            MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READ);
+    if (!iconCodeBase)
+        WBailout("Failed to allocate memory");
+
+    codedef_cache = calloc(1, sizeof(codedef*) * CODE_END);
+    codedef *cd = icon_code;
+    while (cd && cd->sz) {
+        cd->offset = o;
+        codedef_cache[cd->id] = cd;
+        o += cd->sz;
+        ++cd;
+    }
+
+    if (o > ICON_CODE_SIZE)
+        Bailout("Code section overflow");
+}
+
+static codedef *CodeById(int id) {
+    if (!codedef_cache)
+        InitCode();
+    return codedef_cache[id];
+}
+
+unsigned long CodeAddr(int id) {
+    if (!codedef_cache)
+        InitCode();
+    return iconCodeBase + codedef_cache[id]->offset;
+}
+
 void WriteCode() {
     codedef *c;
-    DWORD o;
 
     // Write code
-    o = 0;
     c = icon_code;
-    while (c && c->len) {
-	if (o + c->len > ICON_CODE_SIZE)
-	    Bailout("Code section overflow");
-	PutData(iconCodeBase + o, (char*)c->code, c->len);
-
-	o += c->len;
+    while (c && c->sz) {
+	PutData(CodeAddr(c->id), c->code, c->sz);
 	++c;
     }
 }
 
-void CalcCodeOffsets() {
-    codedef *cd;
-    int i;
-    DWORD o;
-
-    // Calculate code offsets; need them for jumps and data refs
-    i = 0; o = 0;
-    cd = icon_code;
-    while (cd && cd->len) {
-	cd->offset = o;
-	o += cd->len;
-	++i; ++cd;
-    }
-}
-
-#define SETBYTE(a, x) ((*(c+(a))) = (x))
-#define SETLONG(a, x) ((*(unsigned long*)(c+(a))) = (unsigned long)(x))
-#define SETCALL(a, x) (SETLONG((a), CalcRelAddr(iconCodeBase + cd->offset + (a), (x))))
+#define SETBYTE(a, x) ((*(cd->code+(a))) = (x))
+#define SETLONG(a, x) ((*(unsigned long*)(cd->code+(a))) = (unsigned long)(x))
+#define SETCALL(a, x) (SETLONG((a), CalcRelAddr(CodeAddr(cd->id) + (a), (x))))
 static void FixupIconOffsets() {
     codedef *cd;
-    unsigned char *c;
     // Fixup enter_game
-    c = icon_code[CODE_ENTER_GAME].code;
-    SETLONG(0x000A, iconDataBase + iconDataOffsets[DATA_ZONE_MAP]);
-    SETLONG(0x00A5, iconDataBase + iconDataOffsets[DATA_SPAWNCOORDS]);
+    cd = CodeById(CODE_ENTER_GAME);
+    SETLONG(0x000A, DataAddr(DATA_ZONE_MAP));
+    SETLONG(0x00A5, DataAddr(DATA_SPAWNCOORDS));
 
     // Fixup key_hook
-    c = icon_code[CODE_KEY_HOOK].code;
-    SETLONG(0x0017, iconDataBase + iconDataOffsets[DATA_KBHOOKS]);
+    cd = CodeById(CODE_KEY_HOOK);
+    SETLONG(0x0017, DataAddr(DATA_KBHOOKS));
 
     // Fixup key_torch
-    cd = &icon_code[CODE_KEY_TORCH];
-    c = cd->code;
-    SETLONG(0x0007, iconStrBase + iconStrOffsets[STR_HOLDTORCH]);
-    SETCALL(0x000E, iconCodeBase + icon_code[CODE_GENERIC_MOV].offset);
+    cd = CodeById(CODE_KEY_TORCH);
+    SETLONG(0x0007, StringAddr(STR_HOLDTORCH));
+    SETCALL(0x000E, CodeAddr(CODE_GENERIC_MOV));
 
     // Fixup key_nocoll
-    cd = &icon_code[CODE_KEY_NOCOLL];
-    c = cd->code;
-    SETLONG(0x000B, iconStrBase + iconStrOffsets[STR_NOCLIP_ON]);
-    SETLONG(0x0012, iconStrBase + iconStrOffsets[STR_NOCLIP_OFF]);
+    cd = CodeById(CODE_KEY_NOCOLL);
+    SETLONG(0x000B, StringAddr(STR_NOCLIP_ON));
+    SETLONG(0x0012, StringAddr(STR_NOCLIP_OFF));
 
     // Fixup key_detach
-    cd = &icon_code[CODE_KEY_DETACH];
-    c = cd->code;
-    SETLONG(0x0020, iconStrBase + iconStrOffsets[STR_CAMERADETACH]);
-    SETLONG(0x0027, iconStrBase + iconStrOffsets[STR_CAMERAATTACH]);
+    cd = CodeById(CODE_KEY_DETACH);
+    SETLONG(0x0020, StringAddr(STR_CAMERADETACH));
+    SETLONG(0x0027, StringAddr(STR_CAMERAATTACH));
 
     // Fixup key_loadmap
-    cd = &icon_code[CODE_KEY_LOADMAP];
-    c = cd->code;
-    SETLONG(0x0016, iconCodeBase + icon_code[CODE_LOADMAP_CB].offset);
-    SETLONG(0x001D, iconStrBase + iconStrOffsets[STR_MAPFILE]);
+    cd = CodeById(CODE_KEY_LOADMAP);
+    SETLONG(0x0016, CodeAddr(CODE_LOADMAP_CB));
+    SETLONG(0x001D, StringAddr(STR_MAPFILE));
 }
 
 static void FixupI24Offsets() {
     codedef *cd;
-    unsigned char *c;
     unsigned long load_map_demo = 0x00535650;
     unsigned long player_ent = 0x00CAF580;
     unsigned long copy_attribs = 0x00495C90;
@@ -386,9 +416,7 @@ static void FixupI24Offsets() {
     unsigned long kboff = 0x5AC8;
 
     // Fixup enter_game
-    cd = &icon_code[CODE_ENTER_GAME];
-    c = cd->code;
-
+    cd = CodeById(CODE_ENTER_GAME);
     SETLONG(0x0003, start_choice);
     SETCALL(0x000F, load_map_demo);
     SETLONG(0x0014, player_ent);
@@ -411,60 +439,50 @@ static void FixupI24Offsets() {
     SETLONG(0x00CF, 0x012F6C44);    // $enttbl[1]
 
     // Fixup generic_mov
-    cd = &icon_code[CODE_GENERIC_MOV];
-    c = cd->code;
+    cd = CodeById(CODE_GENERIC_MOV);
     SETCALL(0x001C, 0x00599710);            // $move_by_name
     SETLONG(0x0032, 0x1928);                // $next_mov offset
 
     // Fixup get_target
-    cd = &icon_code[CODE_GET_TARGET];
-    c = cd->code;
+    cd = CodeById(CODE_GET_TARGET);
     SETLONG(0x0001, 0x00F07220);            // $target
     SETLONG(0x000B, player_ent);
 
     // Fixup key_hook
-    cd = &icon_code[CODE_KEY_HOOK];
-    c = cd->code;
+    cd = CodeById(CODE_KEY_HOOK);
     SETLONG(0x000A, 0x00E37F64);
 
     // Fixup key_fly
-    cd = &icon_code[CODE_KEY_FLY];
-    c = cd->code;
+    cd = CodeById(CODE_KEY_FLY);
     SETLONG(0x0002, player_ent);
     SETLONG(0x0010, controls_from_server);
 
     // Fixup key_torch
-    cd = &icon_code[CODE_KEY_TORCH];
-    c = cd->code;
+    cd = CodeById(CODE_KEY_TORCH);
     SETLONG(0x0002, player_ent);
 
     // Fixup key_nocoll
-    cd = &icon_code[CODE_KEY_NOCOLL];
-    c = cd->code;
+    cd = CodeById(CODE_KEY_NOCOLL);
     SETLONG(0x0001, 0x016714AC);            // $nocoll
     SETCALL(0x001A, annoying_alert);
 
     // Fixup key_seeall
-    cd = &icon_code[CODE_KEY_SEEALL];
-    c = cd->code;
+    cd = CodeById(CODE_KEY_SEEALL);
     SETLONG(0x0001, 0x0167CC04);            // $seeall
 
     // Fixup key_detach
-    cd = &icon_code[CODE_KEY_DETACH];
-    c = cd->code;
+    cd = CodeById(CODE_KEY_DETACH);
     SETLONG(0x0002, 0x016730C8);            // $is_detached
     SETLONG(0x000B, 0x012DF1A0);            // $camera
     SETCALL(0x0011, 0x004DF9E0);            // $detach_camera
     SETCALL(0x002C, annoying_alert);
 
     // Fixup key_loadmap
-    cd = &icon_code[CODE_KEY_LOADMAP];
-    c = cd->code;
+    cd = CodeById(CODE_KEY_LOADMAP);
     SETCALL(0x0028, 0x005B6E10);
 
     // Fixup loadmap_cb
-    cd = &icon_code[CODE_LOADMAP_CB];
-    c = cd->code;
+    cd = CodeById(CODE_LOADMAP_CB);
     SETCALL(0x0001, 0x005BAD80);            // $dialog_get_text
     SETCALL(0x000A, 0x0053BFC0);            // $map_clear
     SETCALL(0x0010, load_map_demo);

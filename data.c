@@ -11,8 +11,14 @@
 #include "data.h"
 #include "strings.h"
 
-DWORD iconDataBase = 0;
-DWORD *iconDataOffsets = 0;
+static DWORD iconDataBase = 0;
+static DWORD *dataoffset_cache = 0;
+
+typedef struct {
+    int id;
+    int sz;
+    void *init;
+} datamap;
 
 static float spawncoords[] =
 {
@@ -24,50 +30,68 @@ static float spawncoords[] =
     679.5, 109.0, 3202.5,	// Imperial
 };
 
-void WriteIconData() {
-    unsigned long *hooks;
-    int i, l;
-    DWORD o;
-    DWORD zoneMap[6];
+static datamap icon_data[] = {
+    { DATA_ZONE_MAP, 6*sizeof(DWORD), 0 },
+    { DATA_SPAWNCOORDS, sizeof(spawncoords), spawncoords },
+    { DATA_KBHOOKS, 0x80*sizeof(DWORD), 0 },
+    { 0, 0, 0 }
+};
 
-    // Build zone map
-    for (i = 0; i < 6; i++) {
-	zoneMap[i] = iconStrBase + iconStrOffsets[STR_MAP_OUTBREAK + i];
+static void InitData() {
+    DWORD o = 0;
+
+    iconDataBase = (DWORD)VirtualAllocEx(pinfo.hProcess, NULL, ICON_DATA_SIZE,
+            MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!iconDataBase)
+        WBailout("Failed to allocate memory");
+
+    dataoffset_cache = calloc(1, sizeof(DWORD) * DATA_END);
+    datamap *dm = icon_data;
+    while (dm && dm->sz) {
+        dataoffset_cache[dm->id] = o;
+        o += dm->sz;
+        ++dm;
     }
 
-    // Write data
-    o = 0;
-
-    iconDataOffsets = malloc(3 * sizeof(DWORD));
-    iconDataOffsets[DATA_ZONE_MAP] = o;
-    l = sizeof(zoneMap);
-    if (o + l > ICON_DATA_SIZE)
+    if (o > ICON_DATA_SIZE)
 	Bailout("Data section overflow");
-    PutData(iconDataBase + o, (char*)zoneMap, l);
-    o += l;
+}
 
-    iconDataOffsets[DATA_SPAWNCOORDS] = o;
-    l = sizeof(spawncoords);
-    if (o + l > ICON_DATA_SIZE)
-	Bailout("Data section overflow");
-    PutData(iconDataBase + o, (char*)spawncoords, l);
-    o += l;
+unsigned long DataAddr(int id) {
+    if (!dataoffset_cache)
+        InitData();
 
-    iconDataOffsets[DATA_KBHOOKS] = o;
+    return iconDataBase + dataoffset_cache[id];
+}
+
+void WriteData() {
+    unsigned long *hooks;
+    DWORD zoneMap[6];
+    int l;
+
+    // Do generic initializers
+    datamap *dm = icon_data;
+    while (dm && dm->sz) {
+        if (dm->init)
+            PutData(DataAddr(dm->id), dm->init, dm->sz);
+        ++dm;
+    }
+
+    // Build zone map
+    for (l = 0; l < 6; l++) {
+	zoneMap[l] = StringAddr(STR_MAP_OUTBREAK + l);
+    }
+    PutData(DataAddr(DATA_ZONE_MAP), (char*)zoneMap, sizeof(zoneMap));
+
     l = 0x80 * sizeof(DWORD);
     hooks = calloc(1, l);
-
     // Set up hooks for keycodes
-    hooks[2] = iconCodeBase + icon_code[CODE_KEY_FLY].offset;
-    hooks[3] = iconCodeBase + icon_code[CODE_KEY_TORCH].offset;
-    hooks[4] = iconCodeBase + icon_code[CODE_KEY_NOCOLL].offset;
-    hooks[5] = iconCodeBase + icon_code[CODE_KEY_SEEALL].offset;
-    hooks[0x3B] = iconCodeBase + icon_code[CODE_KEY_LOADMAP].offset;    // F1
-    hooks[0x3C] = iconCodeBase + icon_code[CODE_KEY_DETACH].offset;     // F2
-
-    if (o + l > ICON_DATA_SIZE)
-        Bailout("Data section overflow");
-    PutData(iconDataBase + o, (char*)hooks, l);
-    o += l;
+    hooks[2] = CodeAddr(CODE_KEY_FLY);
+    hooks[3] = CodeAddr(CODE_KEY_TORCH);
+    hooks[4] = CodeAddr(CODE_KEY_NOCOLL);
+    hooks[5] = CodeAddr(CODE_KEY_SEEALL);
+    hooks[0x3B] = CodeAddr(CODE_KEY_LOADMAP);    // F1
+    hooks[0x3C] = CodeAddr(CODE_KEY_DETACH);     // F2
+    PutData(DataAddr(DATA_KBHOOKS), (char*)hooks, l);
     free(hooks);
 }

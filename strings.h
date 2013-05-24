@@ -1,5 +1,5 @@
 enum {
-    STR_NOCLIP_ON,
+    STR_NOCLIP_ON = 1,
     STR_NOCLIP_OFF,
     STR_MAPFILE,
     STR_MOV,
@@ -13,11 +13,8 @@ enum {
     STR_MAP_POCKETD,
     STR_MAP_NOVA,
     STR_MAP_IMPERIAL,
+    STR_END
 };
 
-extern DWORD iconStrBase;
-extern DWORD *iconStrOffsets;
-
-#define STR_ADDR(id) (iconStrBase + iconStrOffsets[id])
-
-void WriteIconStrings();
+unsigned long StringAddr(int id);
+void WriteStrings();

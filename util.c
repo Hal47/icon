@@ -45,7 +45,7 @@ unsigned int GetInt(unsigned int addr) {
     return rval;
 }
 
-void PutData(unsigned int addr, void *data, int len) {
+void PutData(unsigned int addr, const void *data, int len) {
     DWORD didwrite = 0;
     DWORD oldprotect;
     VirtualProtectEx(pinfo.hProcess, (LPVOID*)(addr), len, PAGE_READWRITE, &oldprotect);

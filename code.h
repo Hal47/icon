@@ -1,5 +1,5 @@
 enum {
-    CODE_ENTER_GAME,
+    CODE_ENTER_GAME = 1,
     CODE_GENERIC_MOV,
     CODE_GET_TARGET,
     CODE_KEY_HOOK,
@@ -21,34 +21,9 @@ enum {
     CODE_KEY_KILLENT,
     CODE_KEY_TARGETMODE,
     CODE_FRAME_HOOK,
+    CODE_END,
 };
 
-enum {
-    RELOC_ICON_STR,
-    RELOC_ICON_DATA,
-    RELOC_ICON_CODE_ABS,
-    RELOC_ICON_CODE_REL,
-    RELOC_COH_ABS,
-    RELOC_COH_REL,
-};
-
-typedef struct {
-    unsigned long type;
-    unsigned long id;
-} reloc;
-
-typedef struct {
-    unsigned long offset;
-    unsigned long len;
-    unsigned char *code;
-    reloc *relocs;
-} codedef;
-
-extern DWORD iconCodeBase;
-extern codedef icon_code[];
-
-#define CODE_ADDR(id) (iconCodeBase + icon_code[id].offset)
-
-void CalcCodeOffsets();
+unsigned long CodeAddr(int id);
 void RelocateCode();
 void WriteCode();

@@ -1,12 +1,9 @@
 enum {
-    DATA_ZONE_MAP,
+    DATA_ZONE_MAP = 1,
     DATA_SPAWNCOORDS,
     DATA_KBHOOKS,
+    DATA_END
 };
 
-extern DWORD iconDataBase;
-extern DWORD *iconDataOffsets;
-
-#define DATA_ADDR(id) (iconDataBase + iconDataOffsets[id])
-
-void WriteIconData();
+unsigned long DataAddr(int id);
+void WriteData();

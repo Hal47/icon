@@ -38,7 +38,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance,
     startup.cb = sizeof(STARTUPINFO);
     memset(&pinfo, 0, sizeof(pinfo));
 
-    if(!CreateProcess("cityofheroes.exe", "cityofheroes.exe -project coh -noverify", NULL, NULL, FALSE, CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED | DETACHED_PROCESS, NULL, NULL, &startup, &pinfo)) {
+    if(!CreateProcess("cityofheroes.exe", "cityofheroes.exe -project coh -noverify -usetexenvcombine", NULL, NULL, FALSE, CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED | DETACHED_PROCESS, NULL, NULL, &startup, &pinfo)) {
 	MessageBox(NULL, "Failed to launch process!", "Error", MB_OK | MB_ICONEXCLAMATION);
 	return 0;
     }
@@ -53,21 +53,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance,
     return 0;
 }
 
-static void AllocIconMem() {
-    iconStrBase = (DWORD)VirtualAllocEx(pinfo.hProcess, NULL, ICON_STR_SIZE,
-	    MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!iconStrBase)
-	WBailout("Failed to allocate memory");
-    iconDataBase = (DWORD)VirtualAllocEx(pinfo.hProcess, NULL, ICON_DATA_SIZE,
-	    MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!iconDataBase)
-	WBailout("Failed to allocate memory");
-    iconCodeBase = (DWORD)VirtualAllocEx(pinfo.hProcess, NULL, ICON_CODE_SIZE,
-	    MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READ);
-    if (!iconCodeBase)
-	WBailout("Failed to allocate memory");
-}
-
 static void RunPatch() {
     int vers = 0;
 
@@ -78,10 +63,10 @@ static void RunPatch() {
     else
 	Bailout("Sorry, your cityofheroes.exe file is not a supported version.");
 
-    AllocIconMem();
-    CalcCodeOffsets();
-    WriteIconStrings();
-    WriteIconData();
+    InitCoh(vers);
+
+    WriteStrings();
+    WriteData();
     RelocateCode();
     WriteCode();
 
