@@ -87,29 +87,19 @@ static unsigned int GetInt(unsigned int addr) {
     return rval;
 }
 
-static void PutInt(unsigned int addr, unsigned int val) {
-    DWORD didwrite = 0;
-    DWORD oldprotect;
-    VirtualProtectEx(pinfo.hProcess, (LPVOID*)(addr), 4, PAGE_READWRITE, &oldprotect);
-
-    if (!WriteProcessMemory(pinfo.hProcess, (LPVOID*)(addr), &val, 4, &didwrite))
-	WBailout("Couldn't write process memory");
-    if (didwrite < 4)
-	Bailout("Wrote less than expected");
-    VirtualProtectEx(pinfo.hProcess, (LPVOID*)(addr), 4, oldprotect, &oldprotect);
-    return;
-}
-
-static void PutStr(unsigned int addr, char *str, int len) {
+static void PutData(unsigned int addr, void *data, int len) {
     DWORD didwrite = 0;
     DWORD oldprotect;
     VirtualProtectEx(pinfo.hProcess, (LPVOID*)(addr), len, PAGE_READWRITE, &oldprotect);
-    if (!WriteProcessMemory(pinfo.hProcess, (LPVOID*)(addr), str, len, &didwrite))
+    if (!WriteProcessMemory(pinfo.hProcess, (LPVOID*)(addr), data, len, &didwrite))
 	WBailout("Couldn't write process memory");
     if (didwrite < len)
 	Bailout("Wrote less than expected");
     VirtualProtectEx(pinfo.hProcess, (LPVOID*)(addr), len, oldprotect, &oldprotect);
-    return;
+}
+
+static void PutInt(unsigned int addr, unsigned int val) {
+    PutData(addr, &val, sizeof(val));
 }
 
 static void bmagic(unsigned int addr, int oldval, int newval) {
@@ -118,45 +108,23 @@ static void bmagic(unsigned int addr, int oldval, int newval) {
     PutInt(addr, newval);
 }
 
-#if 0
-// Not used anymore
-static void bmagicc(unsigned int addr, int oldaddr, int oldalevel) {
-    if (GetInt(addr) != oldaddr || GetInt(addr - 4) != oldalevel)
-	Bailout("Sorry, your cityofheroes.exe file is not a supported version.");
-    PutInt(addr - 4, 0);
-}
-
-static void bmagics(unsigned int addr, int oldval, char *str, int size) {
-    if (GetInt(addr) != oldval)
-	Bailout("Sorry, your cityofheroes.exe file is not a supported version.");
-    PutStr(addr, str, size);
-}
-#endif
-
-static void adjcall(unsigned int addr, unsigned int olddest, unsigned int newdest) {
-    unsigned int temp;
-    int disp = newdest - olddest;
-
-    temp = GetInt(addr);
-    temp += disp;
-    PutInt(addr, temp);
-}
-
-/* static void fixupbase(unsigned int addr, unsigned int newbase) {
-    int oldaddr = GetInt(addr);
-    newbase += oldaddr;
-    PutInt(addr, newbase);
-} */
-
 // Technically gets it wrong if dest is more than 2GB away, but shouldn't
 // happen due to kernel/userspace split
-static int relcall(unsigned int addr, unsigned int dest) {
+static int reladdr(unsigned int addr, unsigned int dest) {
     return (int)((long long int)dest - ((long long int)addr + 4));
 }
 
 // ONLY USE THIS WITH OPCODES THAT HAVE A 4-BYTE DISP!!!
-static void PutRelCall(unsigned int addr, unsigned int dest) {
-    PutInt(addr, relcall(addr, dest));
+static void PutRelAddr(unsigned int addr, unsigned int dest) {
+    PutInt(addr, reladdr(addr, dest));
+}
+
+// This writes 5 bytes at addr
+static void PutCall(unsigned int addr, unsigned int dest) {
+    unsigned char temp[5];
+    temp[0] = 0xE5;
+    *(unsigned int*)(temp + 1) = reladdr(addr + 1, dest);
+    PutData(addr, temp, 5);
 }
 
 static DWORD iconStrBase = 0;
@@ -569,7 +537,7 @@ static void WriteIconData() {
 
 	iconStrOffsets = realloc(iconStrOffsets, sizeof(DWORD) * (i + 1));
 	iconStrOffsets[i] = o;
-	PutStr(iconStrBase + o, *s, l);
+	PutData(iconStrBase + o, *s, l);
 
 	o += l;
 	++i; ++s;
@@ -588,14 +556,14 @@ static void WriteIconData() {
     l = sizeof(zoneMap);
     if (o + l > ICON_DATA_SIZE)
 	Bailout("Data section overflow");
-    PutStr(iconDataBase + o, (char*)zoneMap, l);
+    PutData(iconDataBase + o, (char*)zoneMap, l);
     o += l;
 
     iconDataOffsets[DATA_SPAWNCOORDS] = o;
     l = sizeof(spawncoords);
     if (o + l > ICON_DATA_SIZE)
 	Bailout("Data section overflow");
-    PutStr(iconDataBase + o, (char*)spawncoords, l);
+    PutData(iconDataBase + o, (char*)spawncoords, l);
     o += l;
 
     iconDataOffsets[DATA_KBHOOKS] = o;
@@ -612,7 +580,7 @@ static void WriteIconData() {
 
     if (o + l > ICON_DATA_SIZE)
         Bailout("Data section overflow");
-    PutStr(iconDataBase + o, (char*)hooks, l);
+    PutData(iconDataBase + o, (char*)hooks, l);
     o += l;
     free(hooks);
 }
@@ -627,7 +595,7 @@ static void WriteIconCode() {
     while (c && c->len) {
 	if (o + c->len > ICON_CODE_SIZE)
 	    Bailout("Code section overflow");
-	PutStr(iconCodeBase + o, (char*)c->code, c->len);
+	PutData(iconCodeBase + o, (char*)c->code, c->len);
 
 	o += c->len;
 	++c;
@@ -651,7 +619,7 @@ static void CalculateIconOffsets() {
 
 #define SETBYTE(a, x) ((*(c+(a))) = (x))
 #define SETLONG(a, x) ((*(unsigned long*)(c+(a))) = (unsigned long)(x))
-#define SETCALL(a, x) (SETLONG((a), relcall(iconCodeBase + cd->offset + (a), (x))))
+#define SETCALL(a, x) (SETLONG((a), reladdr(iconCodeBase + cd->offset + (a), (x))))
 static void FixupIconOffsets() {
     codedef *cd;
     unsigned char *c;
@@ -851,14 +819,14 @@ static void PatchI24() {
 
     // hook keyboard
     bmagic(0x005C94E0, 0xE37F64A1, 0x000000E8);
-    PutRelCall(0x005C94E1, iconCodeBase + icon_code[CODE_KEY_HOOK].offset);
+    PutRelAddr(0x005C94E1, iconCodeBase + icon_code[CODE_KEY_HOOK].offset);
 
     // turn on invert mouse
     bmagic(0x00B34E00, 0, 1);
 
     // Hook "enter game"
     bmagic(0x004CC608, 0xA1000003, 0xE8000003);
-    PutRelCall(0x004CC60C, iconCodeBase + icon_code[CODE_ENTER_GAME].offset);
+    PutRelAddr(0x004CC60C, iconCodeBase + icon_code[CODE_ENTER_GAME].offset);
     bmagic(0x004CC610, 0xC01BD8F7, 0xC4A3C031);
     bmagic(0x004CC614, 0x83A6E083, 0xE9012DF3);
     bmagic(0x004CC618, 0x44895AC0, 0x00000390);
@@ -867,7 +835,7 @@ static void PatchI24() {
     bmagic(0x00440D3C, 0xD8C08310, 0x81C08310);
     bmagic(0x00440D80, 0x74C08500, 0xEBC08500);
     bmagic(0x00440DE0, 0xA1302444, 0xE8302444);
-    PutRelCall(0x00440DE4, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
+    PutRelAddr(0x00440DE4, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
     bmagic(0x00440DFC, 0x4440D921, 0x5C40D921);
     bmagic(0x00440E00, 0xD920488D, 0xD938488D);
     bmagic(0x00440E0C, 0x5CD94840, 0x5CD96040);
@@ -887,10 +855,10 @@ static void PatchI24() {
     bmagic(0x00440FE4, 0xFF3D80FF, 0xFF3D8090);
     bmagic(0x00440FEC, 0x30A13E74, 0x85E83E74);
     bmagic(0x00440FF0, 0x83016131, 0x8311F046);
-    PutRelCall(0x00440FEF, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
+    PutRelAddr(0x00440FEF, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
     bmagic(0x00440FF4, 0x748D20C0, 0x748D38C0);
     bmagic(0x00440FFC, 0xD90042AB, 0xE80042AB);
-    PutRelCall(0x00441000, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
+    PutRelAddr(0x00441000, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
     bmagic(0x00441004, 0x6131300D, 0x548DC189);
     bmagic(0x00441008, 0x4459D901, 0x81E834E4);
     bmagic(0x0044100C, 0x3130158B, 0xEB000727);
