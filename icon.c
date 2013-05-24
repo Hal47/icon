@@ -211,6 +211,7 @@ enum {
 enum {
     CODE_ENTER_GAME,
     CODE_GENERIC_MOV,
+    CODE_GET_TARGET,
     CODE_KEY_HOOK,
     CODE_KEY_FLY,
     CODE_KEY_TORCH,
@@ -219,6 +220,7 @@ enum {
     CODE_KEY_DETACH,
     CODE_KEY_LOADMAP,
     CODE_LOADMAP_CB,
+    CODE_KEY_COORDS,
     CODE_KEY_MOV,
     CODE_MOV_CB,
     CODE_KEY_FX,
@@ -352,6 +354,17 @@ unsigned char code_generic_mov[] = {
 0x5F,                               // 003E POP EDI
 0x83,0xC4,0x04,                     // 003F ADD ESP,4
 0xC3,                               // 0042 RETN
+};
+
+unsigned char code_get_target[] = {
+0xA1,0x00,0x00,0x00,0x00,           // 0000 MOV EAX, DWORD PTR [$target]
+                                    // 0001 ***FIXUP*** COH absvar
+0x85,0xC0,                          // 0005 TEST EAX,EAX
+0x74,0x01,                          // 0007 JZ 000A
+0xC3,                               // 0009 RETN
+0xA1,0x00,0x00,0x00,0x00,           // 000A MOV EAX, DWORD PTR [$player_ent]
+                                    // 000B ***FIXUP*** COH absvar
+0xC3,                               // 000F RETN
 };
 
 unsigned char code_key_hook[] = {
@@ -511,6 +524,7 @@ typedef struct {
 static codedef icon_code[] = {
     { 0, sizeof(code_enter_game), code_enter_game },
     { 0, sizeof(code_generic_mov), code_generic_mov },
+    { 0, sizeof(code_get_target), code_get_target },
     { 0, sizeof(code_key_hook), code_key_hook },
     { 0, sizeof(code_key_fly), code_key_fly },
     { 0, sizeof(code_key_torch), code_key_torch },
@@ -593,8 +607,8 @@ static void WriteIconData() {
     hooks[3] = iconCodeBase + icon_code[CODE_KEY_TORCH].offset;
     hooks[4] = iconCodeBase + icon_code[CODE_KEY_NOCOLL].offset;
     hooks[5] = iconCodeBase + icon_code[CODE_KEY_SEEALL].offset;
-    hooks[6] = iconCodeBase + icon_code[CODE_KEY_DETACH].offset;
-    hooks[7] = iconCodeBase + icon_code[CODE_KEY_LOADMAP].offset;
+    hooks[0x3B] = iconCodeBase + icon_code[CODE_KEY_LOADMAP].offset;    // F1
+    hooks[0x3C] = iconCodeBase + icon_code[CODE_KEY_DETACH].offset;     // F2
 
     if (o + l > ICON_DATA_SIZE)
         Bailout("Data section overflow");
@@ -716,6 +730,12 @@ static void FixupI24Offsets() {
     c = cd->code;
     SETCALL(0x001C, 0x00599710);            // $move_by_name
     SETLONG(0x0032, 0x1928);                // $next_mov offset
+
+    // Fixup get_target
+    cd = &icon_code[CODE_GET_TARGET];
+    c = cd->code;
+    SETLONG(0x0001, 0x00F07220);            // $target
+    SETLONG(0x000B, player_ent);
 
     // Fixup key_hook
     cd = &icon_code[CODE_KEY_HOOK];
@@ -842,6 +862,54 @@ static void PatchI24() {
     bmagic(0x004CC610, 0xC01BD8F7, 0xC4A3C031);
     bmagic(0x004CC614, 0x83A6E083, 0xE9012DF3);
     bmagic(0x004CC618, 0x44895AC0, 0x00000390);
+
+    // Modify editor toolbar to affect entity position
+    bmagic(0x00440D3C, 0xD8C08310, 0x81C08310);
+    bmagic(0x00440D80, 0x74C08500, 0xEBC08500);
+    bmagic(0x00440DE0, 0xA1302444, 0xE8302444);
+    PutRelCall(0x00440DE4, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
+    bmagic(0x00440DFC, 0x4440D921, 0x5C40D921);
+    bmagic(0x00440E00, 0xD920488D, 0xD938488D);
+    bmagic(0x00440E0C, 0x5CD94840, 0x5CD96040);
+    bmagic(0x00440E14, 0x245CD94C, 0x245CD964);
+    bmagic(0x00440E28, 0x8A302444, 0xB9302444);
+    bmagic(0x00440E2C, 0xDD7EFF0D, 0x00DD7EFF);
+    bmagic(0x00440E30, 0x2444D900, 0x2444D990);
+    bmagic(0x00440E34, 0xD9C9842C, 0xD901B42C);
+    bmagic(0x00440E38, 0x74282444, 0x88282444);
+    bmagic(0x00440E3C, 0x2444D942, 0x2444D921);
+    bmagic(0x00440E80, 0x8B6F75C0, 0x906F75C0);
+    bmagic(0x00440E84, 0x61313015, 0x90909090);
+    bmagic(0x00440E88, 0xA8153B01, 0x90909090);
+    bmagic(0x00440E8C, 0x7500C2DC, 0x90909090);
+    bmagic(0x00440E90, 0x2444D961, 0x2444D990);
+    bmagic(0x00440FE0, 0xFF9C1BE8, 0x90909090);
+    bmagic(0x00440FE4, 0xFF3D80FF, 0xFF3D8090);
+    bmagic(0x00440FEC, 0x30A13E74, 0x85E83E74);
+    bmagic(0x00440FF0, 0x83016131, 0x8311F046);
+    PutRelCall(0x00440FEF, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
+    bmagic(0x00440FF4, 0x748D20C0, 0x748D38C0);
+    bmagic(0x00440FFC, 0xD90042AB, 0xE80042AB);
+    PutRelCall(0x00441000, iconCodeBase + icon_code[CODE_GET_TARGET].offset);
+    bmagic(0x00441004, 0x6131300D, 0x548DC189);
+    bmagic(0x00441008, 0x4459D901, 0x81E834E4);
+    bmagic(0x0044100C, 0x3130158B, 0xEB000727);
+    bmagic(0x00441010, 0x44D90161, 0x44D90114);
+
+    // and here too
+    bmagic(0x004406C7, 0x7E8B1174, 0x7E8B9090);
+    bmagic(0x0044078C, 0xC1950F01, 0x9001B101);
+    bmagic(0x0044079C, 0x07750001, 0x07EB0001);
+    bmagic(0x00440878, 0x7E801F74, 0x7E809090);
+    bmagic(0x00440894, 0x75000161, 0xEB000161);
+
+    // Display editor toolbar in main loop
+    bmagic(0x00838DC8, 0x0A301D39, 0xE9B01D39);
+    bmagic(0x00838DD0, 0x62B405D9, 0x5404EC83);
+    bmagic(0x00838DD4, 0x1DD900A6, 0xC07F07E8);
+    bmagic(0x00838DD8, 0x0167ABDC, 0x08C483FF);
+    bmagic(0x00838DDC, 0xFFFD4FE8, 0x909036EB);
+    bmagic(0x00838DE0, 0x24448DFF, 0x24448D90);
 }
 
 static void PatchI23() {
