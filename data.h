@@ -7,4 +7,6 @@ enum {
 extern DWORD iconDataBase;
 extern DWORD *iconDataOffsets;
 
+#define DATA_ADDR(id) (iconDataBase + iconDataOffsets[id])
+
 void WriteIconData();

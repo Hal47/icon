@@ -18,4 +18,6 @@ enum {
 extern DWORD iconStrBase;
 extern DWORD *iconStrOffsets;
 
+#define STR_ADDR(id) (iconStrBase + iconStrOffsets[id])
+
 void WriteIconStrings();

@@ -47,7 +47,7 @@ typedef struct {
 extern DWORD iconCodeBase;
 extern codedef icon_code[];
 
-#define CODE_OFF(id) (icon_code[id].offset)
+#define CODE_ADDR(id) (iconCodeBase + icon_code[id].offset)
 
 void CalcCodeOffsets();
 void RelocateCode();
