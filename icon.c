@@ -58,7 +58,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance,
     startup.cb = sizeof(STARTUPINFO);
     memset(&pinfo, 0, sizeof(pinfo));
 
-    if(!CreateProcess("cityofheroes.exe", "cityofheroes.exe -project coh -noverify -usetexenvcombine", NULL, NULL, FALSE, CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED | DETACHED_PROCESS, NULL, NULL, &startup, &pinfo)) {
+    if(!CreateProcess("cityofheroes.exe", "cityofheroes.exe -project coh -noverify", NULL, NULL, FALSE, CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED | DETACHED_PROCESS, NULL, NULL, &startup, &pinfo)) {
 	MessageBox(NULL, "Failed to launch process!", "Error", MB_OK | MB_ICONEXCLAMATION);
 	return 0;
     }
@@ -168,13 +168,13 @@ static DWORD iconCodeBase = 0;
 #define ICON_CODE_SIZE 16384
 
 static char *icon_strs[] = {
-    "Noclip enabled",	            // 0
-    "Noclip disabled",	            // 1
+    "Noclip Enabled",	            // 0
+    "Noclip Disabled",	            // 1
     "Enter a map file name:",	    // 2
     "Enter a MOV name:",	    // 3
     "Enter an FX name:",	    // 4
-    "Camera detached",		    // 5
-    "Camera reattached",	    // 6
+    "Camera Detached",		    // 5
+    "Camera Reattached",	    // 6
     "EMOTE_HOLD_TORCH",		    // 7
     "maps/City_Zones/City_00_01/City_00_01.txt",     // 8
     "maps/City_Zones/City_01_01/City_01_01.txt_33",  // 9
@@ -218,14 +218,14 @@ enum {
     CODE_KEY_SEEALL,
     CODE_KEY_DETACH,
     CODE_KEY_LOADMAP,
-    CODE_KEY_LOADMAP_CB,
+    CODE_LOADMAP_CB,
     CODE_KEY_MOV,
-    CODE_KEY_MOV_CB,
+    CODE_MOV_CB,
     CODE_KEY_FX,
-    CODE_KEY_FX_CB,
+    CODE_FX_CB,
     CODE_KEY_KILLFX,
     CODE_KEY_SPAWN,
-    CODE_KEY_SPAWNCB,
+    CODE_SPAWNCB,
     CODE_KEY_KILLENT,
     CODE_KEY_TARGETMODE,
     CODE_FRAME_HOOK,
@@ -321,9 +321,10 @@ static unsigned char code_enter_game[] = {
 0x8D,0x90,0x00,0x00,0x00,0x00,	    // 00C2 LEA EDX,[EAX+$svrid]
 				    // 00C4 ***FIXUP*** offset
 0xC7,0x02,0x01,0x00,0x00,0x00,      // 00C8 MOV DWORD PTR DS:[EDX], 1
-
-0x61,                               // 00CE POPAD
-0xC3,                               // 00CF RETN
+0xA3,0x00,0x00,0x00,0x00,           // 00CE MOV DWORD PTR $enttbl[1], EAX
+                                    // 00CF ***FIXUP*** COH absvar
+0x61,                               // 00D3 POPAD
+0xC3,                               // 00D4 RETN
 };
 
 unsigned char code_generic_mov[] = {
@@ -463,6 +464,44 @@ unsigned char code_key_detach[] = {
 0xC3,                               // 0033 RETN
 };
 
+unsigned char code_key_loadmap[] = {
+0x6A,0x00,                          // 0000 PUSH 00
+0x68,0xFF,0x00,0x00,0x00,           // 0002 PUSH 00FF
+0x6A,0x00,                          // 0007 PUSH 00
+0x6A,0x00,                          // 0009 PUSH 00
+0x6A,0x00,                          // 000B PUSH 00
+0x6A,0x00,                          // 000D PUSH 00
+0x6A,0x00,                          // 0009 PUSH 00
+0x6A,0x00,                          // 0011 PUSH 00
+0x6A,0x00,                          // 0013 PUSH 00
+0x68,0x00,0x00,0x00,0x00,           // 0015 PUSH OFFSET $loadmap_cb
+                                    // 0016 ***FIXUP*** Icon absvar
+0x6A,0x00,                          // 001A PUSH 00
+0x68,0x00,0x00,0x00,0x00,           // 001C PUSH OFFSET $mapfile
+                                    // 001D ***FIXUP*** Icon absvar
+0x6A,0xFF,                          // 0021 PUSH -1
+0x6A,0xFF,                          // 0023 PUSH -1
+0x6A,0x07,                          // 0025 PUSH 7
+0xE8,0x00,0x00,0x00,0x00,           // 0027 CALL $dialog
+                                    // 0028 ***FIXUP*** COH relcall
+0x83,0xC4,0x3C,                     // 002C ADD ESP, 3C
+0xC3,                               // 002F RETN
+};
+
+unsigned char code_loadmap_cb[] = {
+0xE8,0x00,0x00,0x00,0x00,           // 0000 CALL $dialog_get_text
+                                    // 0001 ***FIXUP*** COH relcall
+0x75,0x01,                          // 0005 JNZ 0008
+0xC3,                               // 0007 RETN
+0x50,                               // 0008 PUSH EAX
+0xE8,0x00,0x00,0x00,0x00,           // 0009 CALL $map_clear
+                                    // 000A ***FIXUP*** COH relcall
+0x58,                               // 000E POP EAX
+0xE8,0x00,0x00,0x00,0x00,           // 000F CALL $load_map_demo
+				    // 0010 ***FIXUP*** COH relcall
+0xC3,                               // RETN
+};
+
 typedef struct {
     unsigned long offset;
     unsigned long len;
@@ -478,6 +517,8 @@ static codedef icon_code[] = {
     { 0, sizeof(code_key_nocoll), code_key_nocoll },
     { 0, sizeof(code_key_seeall), code_key_seeall },
     { 0, sizeof(code_key_detach), code_key_detach },
+    { 0, sizeof(code_key_loadmap), code_key_loadmap },
+    { 0, sizeof(code_loadmap_cb), code_loadmap_cb },
     { 0, 0, 0 }
 };
 
@@ -553,13 +594,13 @@ static void WriteIconData() {
     hooks[4] = iconCodeBase + icon_code[CODE_KEY_NOCOLL].offset;
     hooks[5] = iconCodeBase + icon_code[CODE_KEY_SEEALL].offset;
     hooks[6] = iconCodeBase + icon_code[CODE_KEY_DETACH].offset;
+    hooks[7] = iconCodeBase + icon_code[CODE_KEY_LOADMAP].offset;
 
     if (o + l > ICON_DATA_SIZE)
         Bailout("Data section overflow");
     PutStr(iconDataBase + o, (char*)hooks, l);
     o += l;
     free(hooks);
-
 }
 
 static void WriteIconCode() {
@@ -626,11 +667,18 @@ static void FixupIconOffsets() {
     c = cd->code;
     SETLONG(0x0020, iconStrBase + iconStrOffsets[STR_CAMERADETACH]);
     SETLONG(0x0027, iconStrBase + iconStrOffsets[STR_CAMERAATTACH]);
+
+    // Fixup key_loadmap
+    cd = &icon_code[CODE_KEY_LOADMAP];
+    c = cd->code;
+    SETLONG(0x0016, iconCodeBase + icon_code[CODE_LOADMAP_CB].offset);
+    SETLONG(0x001D, iconStrBase + iconStrOffsets[STR_MAPFILE]);
 }
 
 static void FixupI24Offsets() {
     codedef *cd;
     unsigned char *c;
+    unsigned long load_map_demo = 0x00535650;
     unsigned long player_ent = 0x00CAF580;
     unsigned long copy_attribs = 0x00495C90;
     unsigned long controls_from_server = 0x00CAF538;
@@ -643,7 +691,7 @@ static void FixupI24Offsets() {
     c = cd->code;
 
     SETLONG(0x0003, start_choice);
-    SETCALL(0x000F, 0x00535650);
+    SETCALL(0x000F, load_map_demo);
     SETLONG(0x0014, player_ent);
     SETLONG(0x001A, 0x0E00);
     SETCALL(0x0026, copy_attribs);
@@ -661,6 +709,7 @@ static void FixupI24Offsets() {
     SETCALL(0x00B0, 0x004B3790);
     SETLONG(0x00B5, player_ent);
     SETLONG(0x00C4, 0x0F68); // XXX 0x0f6c for I23
+    SETLONG(0x00CF, 0x012F6C44);    // $enttbl[1]
 
     // Fixup generic_mov
     cd = &icon_code[CODE_GENERIC_MOV];
@@ -702,6 +751,18 @@ static void FixupI24Offsets() {
     SETLONG(0x000B, 0x012DF1A0);            // $camera
     SETCALL(0x0011, 0x004DF9E0);            // $detach_camera
     SETCALL(0x002C, annoying_alert);
+
+    // Fixup key_loadmap
+    cd = &icon_code[CODE_KEY_LOADMAP];
+    c = cd->code;
+    SETCALL(0x0028, 0x005B6E10);
+
+    // Fixup loadmap_cb
+    cd = &icon_code[CODE_LOADMAP_CB];
+    c = cd->code;
+    SETCALL(0x0001, 0x005BAD80);            // $dialog_get_text
+    SETCALL(0x000A, 0x0053BFC0);            // $map_clear
+    SETCALL(0x0010, load_map_demo);
 }
 
 static void FixupI23Offsets() {
