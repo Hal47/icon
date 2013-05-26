@@ -30,12 +30,113 @@ static float spawncoords[] =
     679.5, 109.0, 3202.5,	// Imperial
 };
 
+enum {
+    ARG_INT,
+    ARG_UNSIGNED,
+    ARG_FLOAT,
+    ARG_UNK1,
+    ARG_VECTOR,
+    ARG_MATRIX,
+    ARG_STRING,
+    ARG_LINE,
+    ARG_UNK2
+};
+
+typedef struct {
+    int type;
+    DWORD out;
+    int maximum;
+} command_arg;
+
+typedef struct {
+    int     access;
+    DWORD   name;
+    int     id;
+    command_arg args[11];
+    int     flags;
+    DWORD   help;
+    DWORD   callback;
+    int     send;
+    int     nargs;
+    int     refcount;
+    int     unknown;
+} command;
+
+command icon_commands[] = {
+    { 0, STR_CMD_MAPDEV, CODE_CMD_SEEALL, {{ 0 }}, 1, STR_CMD_MAPDEV_HELP },
+    { 0, STR_CMD_NOCLIP, CODE_CMD_NOCOLL, {{ 0 }}, 1, STR_CMD_NOCLIP_HELP },
+    { 0 }
+};
+
+typedef struct {
+    DWORD   commands;
+    DWORD   callback;
+    char    unk1[32];
+} command_group;
+
+typedef struct {
+    command_group groups[32];
+    DWORD   callback;
+    void *hash;
+} command_list;
+
+command_list icon_command_list = {
+    {{ DATA_COMMANDS }, { 0 }}
+};
+
+typedef struct {
+    const char *key;
+    DWORD   command;
+} bind_ent;
+
+bind_ent icon_bind_list[] = {
+    { "f4", STR_CMD_MAPDEV },
+    { "f5", STR_CMD_NOCLIP },
+    { 0, 0 },
+};
+
 static datamap icon_data[] = {
     { DATA_ZONE_MAP, 6*sizeof(DWORD), 0 },
     { DATA_SPAWNCOORDS, sizeof(spawncoords), spawncoords },
     { DATA_KBHOOKS, 0x80*sizeof(DWORD), 0 },
+    { DATA_BIND_LIST, sizeof(icon_bind_list), icon_bind_list },
+    { DATA_BINDS, sizeof(DWORD), 0 },
+    { DATA_COMMANDS, sizeof(icon_commands), icon_commands },
+    { DATA_COMMAND_LIST, sizeof(icon_command_list), &icon_command_list },
+    { DATA_COMMAND_FUNCS, CODE_END*sizeof(DWORD), 0 },
+//    { DATA_PARAM1, 255, 0 },
     { 0, 0, 0 }
 };
+
+static void FixupCommands() {
+    command *c = icon_commands;
+    bind_ent *b = icon_bind_list;
+    int i;
+
+    while (c && c->name) {
+        c->name = StringAddr(c->name);
+        if (c->help)
+            c->help = StringAddr(c->help);
+        if (c->callback)
+            c->callback = CodeAddr(c->callback);
+        for (i = 0; i < c->nargs; i++) {
+            if (c->args[i].out > 0)
+                c->args[i].out = DataAddr(c->args[i].out);
+        }
+        ++c;
+    }
+
+    for (i = 0; i < 32; i++) {
+        if (icon_command_list.groups[i].commands > 0)
+            icon_command_list.groups[i].commands = DataAddr(icon_command_list.groups[i].commands);
+    }
+
+    while (b && b->key) {
+        b->key = (const char*)AddString(b->key);    // terrible abuse ;)
+        b->command = StringAddr(b->command);
+        ++b;
+    }
+}
 
 static void InitData() {
     DWORD o = 0;
@@ -55,6 +156,8 @@ static void InitData() {
 
     if (o > ICON_DATA_SIZE)
 	Bailout("Data section overflow");
+
+    FixupCommands();
 }
 
 unsigned long DataAddr(int id) {
@@ -67,7 +170,7 @@ unsigned long DataAddr(int id) {
 void WriteData() {
     unsigned long *hooks;
     DWORD zoneMap[6];
-    int l;
+    int i, l;
 
     // Do generic initializers
     datamap *dm = icon_data;
@@ -78,8 +181,8 @@ void WriteData() {
     }
 
     // Build zone map
-    for (l = 0; l < 6; l++) {
-	zoneMap[l] = StringAddr(STR_MAP_OUTBREAK + l);
+    for (i = 0; i < 6; i++) {
+	zoneMap[i] = StringAddr(STR_MAP_OUTBREAK + i);
     }
     PutData(DataAddr(DATA_ZONE_MAP), (char*)zoneMap, sizeof(zoneMap));
 
@@ -88,10 +191,20 @@ void WriteData() {
     // Set up hooks for keycodes
     hooks[2] = CodeAddr(CODE_KEY_FLY);
     hooks[3] = CodeAddr(CODE_KEY_TORCH);
-    hooks[4] = CodeAddr(CODE_KEY_NOCOLL);
-    hooks[5] = CodeAddr(CODE_KEY_SEEALL);
     hooks[0x3B] = CodeAddr(CODE_KEY_LOADMAP);    // F1
     hooks[0x3C] = CodeAddr(CODE_KEY_DETACH);     // F2
+    hooks[0x3D] = CodeAddr(CODE_KEY_COORDS);     // F3
+//    hooks[0x3E] = CodeAddr(CODE_KEY_SEEALL);     // F4
+//    hooks[0x3F] = CodeAddr(CODE_KEY_NOCOLL);     // F5
     PutData(DataAddr(DATA_KBHOOKS), (char*)hooks, l);
+    free(hooks);
+
+    // Do generic command mapping
+    l = CODE_END * sizeof(DWORD);
+    hooks = calloc(1, l);
+    for (i = 1; i < CODE_END; i++) {
+        hooks[i] = CodeAddr(i);
+    }
+    PutData(DataAddr(DATA_COMMAND_FUNCS), (char*)hooks, l);
     free(hooks);
 }

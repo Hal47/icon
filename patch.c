@@ -25,7 +25,11 @@ static addrmap addrs_i24[] = {
     { COHVAR_BINDS, 0x00E37F64 },
     { COHVAR_CAMERA, 0x012DF1A0 },
     { COHVAR_CAM_IS_DETACHED, 0x016730C8 },
+    { COHVAR_CONTROLS, 0x01671420 },
     { COHVAR_CONTROLS_FROM_SERVER, 0x00CAF538 },
+    { COHVAR_DEFAULT_BINDS, 0x01677760 },
+    { COHVAR_DRAW_EDIT_BAR, 0x0167E9B0 },
+    { COHVAR_EDIT_TRANSFORM_ABS, 0x00DD7EFF },
     { COHVAR_ENT_CHAR_OFFSET, 0x0E00 },
     { COHVAR_ENT_NEXT_MOV_OFFSET, 0x1928 },
     { COHVAR_ENT_SERVERID_OFFSET, 0x0F68 },
@@ -38,7 +42,11 @@ static addrmap addrs_i24[] = {
     { COHVAR_START_CHOICE, 0x00BB95F4 },
     { COHVAR_TARGET, 0x00F07220 },
     { COHFUNC_ANNOYING_ALERT, 0x005C31C0 },
+    { COHFUNC_BIND, 0x005C93D0 },
+    { COHFUNC_BIND_PUSH, 0x005C9340 },
     { COHFUNC_CALLOC, 0x009D630C },
+    { COHFUNC_CMD_INIT, 0x008633C0 },
+    { COHFUNC_CMD_PARSE, 0x00862D30 },
     { COHFUNC_COPY_ATTRIBS, 0x00495C90 },
     { COHFUNC_DETACH_CAMERA, 0x004DF9E0 },
     { COHFUNC_DIALOG, 0x005B6E10 },
@@ -46,6 +54,8 @@ static addrmap addrs_i24[] = {
     { COHFUNC_ENT_TELEPORT, 0x004B3790 },
     { COHFUNC_INIT_KEYBINDS, 0x005C9050 },
     { COHFUNC_LOAD_MAP_DEMO, 0x00535650 },
+    { COHFUNC_MATRIX_FROM_PYR, 0x0086BB60 },
+    { COHFUNC_MATRIX_TO_PYR, 0x0086C070 },
     { COHFUNC_MAP_CLEAR, 0x0053BFC0 },
     { COHFUNC_MOV_BY_NAME, 0x00599710 },
     { 0, 0 }
@@ -136,51 +146,44 @@ void PatchI24() {
     bmagic(0x00BD12A4, 1, 0);
 
     // hook keyboard
-    bmagic(0x005C94E0, 0xE37F64A1, 0x000000E8);
-    PutRelAddr(0x005C94E1, CodeAddr(CODE_KEY_HOOK));
+    PutCall(0x005C94E0, CodeAddr(CODE_KEY_HOOK));
 
     // turn on invert mouse
     bmagic(0x00B34E00, 0, 1);
 
     // Hook "enter game"
-    bmagic(0x004CC608, 0xA1000003, 0xE8000003);
-    PutRelAddr(0x004CC60C, CodeAddr(CODE_ENTER_GAME));
+    PutCall(0x004CC60B, CodeAddr(CODE_ENTER_GAME));
     bmagic(0x004CC610, 0xC01BD8F7, 0xC4A3C031);
     bmagic(0x004CC614, 0x83A6E083, 0xE9012DF3);
     bmagic(0x004CC618, 0x44895AC0, 0x00000390);
 
     // Modify editor toolbar to affect entity position
-    bmagic(0x00440D3C, 0xD8C08310, 0x81C08310);
-    bmagic(0x00440D80, 0x74C08500, 0xEBC08500);
-    bmagic(0x00440DE0, 0xA1302444, 0xE8302444);
-    PutRelAddr(0x00440DE4, CodeAddr(CODE_GET_TARGET));
-    bmagic(0x00440DFC, 0x4440D921, 0x5C40D921);
-    bmagic(0x00440E00, 0xD920488D, 0xD938488D);
-    bmagic(0x00440E0C, 0x5CD94840, 0x5CD96040);
-    bmagic(0x00440E14, 0x245CD94C, 0x245CD964);
+    // Move it to the corner of the screen
+    bmagic(0x00440D27, 0x1024448B, 0x0070B866);     // MOV AX, 70
+    bmagic(0x00440D2F, 0xFD76B18D, 0xFE6BB18D);     // 28A -> 195
+    bmagic(0x004409BE, 0xFD9E8E8D, 0xFE938E8D);     // 262 -> 16D
+    bmagic(0x00440A56, 0xFDDAC681, 0xFECFC681);     // 226 -> 131
+    // Ignore editor crap
+    bmagic(0x00440D83, 0x448B1474, 0x448B14EB);     // JZ -> JMP
+    PutCall(0x00440DE3, CodeAddr(CODE_GET_TARGET));
+    // adjust offsets for matrix position in entity
+    bmagic(0x00440DFC, 0x4440D921, 0x5C40D921);     // 44 -> 5C
+    bmagic(0x00440E00, 0xD920488D, 0xD938488D);     // 20 -> 38
+    bmagic(0x00440E0C, 0x5CD94840, 0x5CD96040);     // 48 -> 60
+    bmagic(0x00440E14, 0x245CD94C, 0x245CD964);     // 4C -> 64
+/*
     bmagic(0x00440E28, 0x8A302444, 0xB9302444);
     bmagic(0x00440E2C, 0xDD7EFF0D, 0x00DD7EFF);
     bmagic(0x00440E30, 0x2444D900, 0x2444D990);
     bmagic(0x00440E34, 0xD9C9842C, 0xD901B42C);
     bmagic(0x00440E38, 0x74282444, 0x88282444);
-    bmagic(0x00440E3C, 0x2444D942, 0x2444D921);
-    bmagic(0x00440E80, 0x8B6F75C0, 0x906F75C0);
-    bmagic(0x00440E84, 0x61313015, 0x90909090);
-    bmagic(0x00440E88, 0xA8153B01, 0x90909090);
-    bmagic(0x00440E8C, 0x7500C2DC, 0x90909090);
-    bmagic(0x00440E90, 0x2444D961, 0x2444D990);
-    bmagic(0x00440FE0, 0xFF9C1BE8, 0x90909090);
-    bmagic(0x00440FE4, 0xFF3D80FF, 0xFF3D8090);
-    bmagic(0x00440FEC, 0x30A13E74, 0x85E83E74);
-    bmagic(0x00440FF0, 0x83016131, 0x8311F046);
-    PutRelAddr(0x00440FEF, CodeAddr(CODE_GET_TARGET));
-    bmagic(0x00440FF4, 0x748D20C0, 0x748D38C0);
-    bmagic(0x00440FFC, 0xD90042AB, 0xE80042AB);
-    PutRelAddr(0x00441000, CodeAddr(CODE_GET_TARGET));
-    bmagic(0x00441004, 0x6131300D, 0x548DC189);
-    bmagic(0x00441008, 0x4459D901, 0x81E834E4);
-    bmagic(0x0044100C, 0x3130158B, 0xEB000727);
-    bmagic(0x00441010, 0x44D90161, 0x44D90114);
+    bmagic(0x00440E3C, 0x2444D942, 0x2444D921); */
+
+    // Don't check editor selection stuff
+    bmagic(0x00440E8F, 0x44D96175, 0x44D99090);     // NOP out the JNE
+
+    PutCall(0x00440FE0, CodeAddr(CODE_POS_UPDATE_CB));
+    bmagic(0x00440FEC, 0x30A13E74, 0x30A137EB);     // Jump to end after hook
 
     // and here too
     bmagic(0x004406C7, 0x7E8B1174, 0x7E8B9090);

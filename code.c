@@ -21,6 +21,7 @@ enum {
     ICON_CODE_REL,
     COH_ABS,
     COH_REL,
+    IMMEDIATE,
     RELOC_END
 };
 
@@ -90,7 +91,7 @@ static unsigned char code_enter_game[] = {
 0xF7,0xE2,                          // 00A1 MUL EDX
 0x8D,0x90,RELOC,                    // 00A3 LEA EDX,[EAX+$spawncoords]
 0x8B,0x0D,RELOC,                    // 00A9 MOV ECX,DWORD PTR [$player_ent]
-0xE8,RELOC,                         // 00AF CALL $entity_setpos
+0xE8,RELOC,                         // 00AF CALL $ent_teleport
 
 // set a database ID
 0xA1,RELOC,	                    // 00B4 MOV EAX,DWORD PTR [$player_ent]
@@ -101,8 +102,17 @@ static unsigned char code_enter_game[] = {
 0x31,0xFF,                          // 00CD XOR EDI,EDI
 0x47,                               // 00CF INC EDI
 0x89,0x04,0xBD,RELOC,               // 00D0 MOV DWORD PTR $enttbl+EDI*4, EAX
-0x61,                               // 00D7 POPAD
-0xC3,                               // 00D8 RETN
+
+// edit toolbar gets turned on somewhere during game init, turn it back off
+0x31,0xC0,                          // XOR EAX,EAX
+0xA3,RELOC,                         // MOV DWORD PTR [$draw_edit_bar], EAX
+0xB0,0x01,                          // MOV AL, 1
+0xA2,RELOC,                         // MOV BYTE PTR [$edit_transform_abs], AL
+
+0xE8,RELOC,                         // CALL $setup_binds
+
+0x61,                               // POPAD
+0xC3,                               // RETN
 };
 reloc reloc_enter_game[] = {
     { COH_ABS, COHVAR_START_CHOICE },
@@ -127,6 +137,79 @@ reloc reloc_enter_game[] = {
     { COH_ABS, COHVAR_PLAYER_ENT },
     { COH_ABS, COHVAR_ENT_SERVERID_OFFSET },
     { COH_ABS, COHVAR_ENTTBL },
+    { COH_ABS, COHVAR_DRAW_EDIT_BAR },
+    { COH_ABS, COHVAR_EDIT_TRANSFORM_ABS },
+    { ICON_CODE_REL, CODE_SETUP_BINDS },
+    { RELOC_END, 0 }
+};
+
+unsigned char code_setup_binds[] = {
+0x68,0x10,0x30,0x00,0x00,           // PUSH 3010
+0x6A,0x01,                          // PUSH 1
+0xE8,RELOC,                         // CALL $calloc
+0x83,0xC4,0x08,                     // ADD ESP,8
+0xA3,RELOC,                         // MOV DWORD PTR [$binds], EAX
+0xE8,RELOC,                         // CALL $bind_push
+0xA1,RELOC,                         // MOV EAX, DWORD PTR [$binds]
+0xC6,0x00,0x02,                     // MOV BYTE PTR [EAX], 2
+0xBA,RELOC,                         // MOV EDX, $cmd_handler
+0x89,0x90,0x08,0x30,0x00,0x00,      // MOV DWORD PTR [EAX+3008], EDX
+0xBF,RELOC,                         // MOV EDI, OFFSET $bind_list
+// loop:
+0x8B,0x07,                          // MOV EAX, DWORD PTR [EDI]
+0x85,0xC0,                          // TEST EAX, EAX
+0x74,0x13,                          // JZ SHORT done
+0x6A,0x00,                          // PUSH 0
+0xFF,0x77,0x04,                     // PUSH DWORD PTR [EDI+04]
+0x50,                               // PUSH EAX
+0xE8,RELOC,                         // CALL $bind
+0x83,0xC4,0x0C,                     // ADD ESP, 0C
+0x83,0xC7,0x08,                     // ADD EDI, 8
+0xEB,0xE7,                          // JMP SHORT loop
+// done:
+0xC3,                               // RETN
+};
+reloc reloc_setup_binds[] = {
+    { COH_REL, COHFUNC_CALLOC },
+    { ICON_DATA, DATA_BINDS },
+    { COH_REL, COHFUNC_BIND_PUSH },
+    { ICON_DATA, DATA_BINDS },
+    { ICON_CODE_ABS, CODE_CMD_HANDLER },
+    { ICON_DATA, DATA_BIND_LIST },
+    { COH_REL, COHFUNC_BIND },
+
+    { RELOC_END, 0 }
+};
+
+unsigned char code_cmd_handler[] = {
+0x55,                           // PUSH EBP
+0x89,0xE5,                      // MOV EBP, ESP
+0x81,0xEC,0x60,0x04,0x00,0x00,  // SUB ESP, 460
+0x57,                           // PUSH EDI
+0x8D,0x85,0xA0,0xFB,0xFF,0xFF,  // LEA EAX, [EBP-460]
+0x8B,0x7D,0x08,                 // MOV EDI, DWORD PTR [EBP+8]
+0x57,                           // PUSH EDI
+0x68,RELOC,                     // PUSH $commands
+0xE8,RELOC,                     // CALL $cmd_parse
+0x83,0xC4,0x08,                 // ADD ESP, 8
+0x85,0xC0,                      // TEST EAX,EAX
+0x74,0x13,                      // JNZ SHORT out
+0x8B,0x78,0x08,                 // MOV EDI, DWORD PTR [EAX+8]
+0x8B,0x14,0xBD,RELOC,           // MOV EDX, DWORD PTR [EDI*4+$command_funcs]
+0x31,0xC0,                      // XOR EAX, EAX
+0x85,0xD2,                      // TEST EDX, EDX
+0x74,0x03,                      // JZ SHORT out
+0xFF,0xD2,                      // CALL EDX
+0x40,                           // INC EAX
+// out:
+0x5F,                           // POP EDI
+0xC9,                           // LEAVE
+0xC3                            // RETN
+};
+reloc reloc_cmd_handler[] = {
+    { ICON_DATA, DATA_COMMAND_LIST },
+    { COH_REL, COHFUNC_CMD_PARSE },
+    { ICON_DATA, DATA_COMMAND_FUNCS },
     { RELOC_END, 0 }
 };
 
@@ -242,7 +325,7 @@ reloc reloc_key_torch[] = {
     { RELOC_END, 0 }
 };
 
-unsigned char code_key_nocoll[] = {
+unsigned char code_cmd_nocoll[] = {
 0xBA,RELOC,                         // 0000 MOV EDX, OFFSET $nocoll
 0x83,0x32,0x01,                     // 0005 XOR DWORD PTR [EDX], 1
 0x74,0x07,                          // 0008 JZ 0017
@@ -255,7 +338,7 @@ unsigned char code_key_nocoll[] = {
 0x83,0xC4,0x08,                     // 001E ADD ESP,8
 0xC3,                               // 0021 RETN
 };
-reloc reloc_key_nocoll[] = {
+reloc reloc_cmd_nocoll[] = {
     { COH_ABS, COHVAR_NOCOLL },
     { ICON_STR, STR_NOCLIP_ON },
     { ICON_STR, STR_NOCLIP_OFF },
@@ -263,13 +346,23 @@ reloc reloc_key_nocoll[] = {
     { RELOC_END, 0 }
 };
 
-unsigned char code_key_seeall[] = {
+unsigned char code_cmd_seeall[] = {
 0xBA,RELOC,                         // 0000 MOV EDX, OFFSET $seeall
 0x83,0x32,0x01,                     // 0005 XOR DWORD PTR [EDX], 1
 0xC3,                               // 0008 RETN
 };
-reloc reloc_key_seeall[] = {
+reloc reloc_cmd_seeall[] = {
     { COH_ABS, COHVAR_SEEALL },
+    { RELOC_END, 0 }
+};
+
+unsigned char code_key_coords[] = {
+0xBA,RELOC,                         // 0000 MOV EDX, OFFSET $draw_edit_bar
+0x83,0x32,0x01,                     // 0005 XOR DWORD PTR [EDX], 1
+0xC3,                               // 0008 RETN
+};
+reloc reloc_key_coords[] = {
+    { COH_ABS, COHVAR_DRAW_EDIT_BAR },
     { RELOC_END, 0 }
 };
 
@@ -346,19 +439,115 @@ reloc reloc_loadmap_cb[] = {
     { RELOC_END, 0 }
 };
 
+unsigned char code_pos_update_cb[] = {
+0x8D,0x74,0x24,0x20,            // 0000 LEA ESI, [ESP+20]
+0xE8,RELOC,                     // CALL $get_target
+0x80,0x3D,RELOC,0x00,           // CMP BYTE PTR [$edit_transform_abs], 0
+0x74, 0x15,                     // JE reltrans
+0x50,                           // PUSH EAX
+0x56,                           // PUSH ESI
+0x50,                           // PUSH EAX
+0xE8,RELOC,                     // CALL $set_ent_facing
+0x83,0xC4,0x08,                 // ADD ESP, 8
+0x59,                           // POP ECX
+0x8D,0x56,0x18,                 // LEA EDX, [ESI+18]
+0xE8,RELOC,                     // CALL $ent_teleport
+0xC3,                           // RETN
+
+// reltrans:
+0x83,0xEC,0x10,                 // SUB ESP, 10
+0x89,0x44,0xE4,0x0C,            // MOV DWORD PTR [ESP+0C], EAX
+0x8D,0x48,0x38,                 // LEA ECX, [EAX+38]
+0x89,0xE2,                      // MOV EDX, ESP
+0xE8,RELOC,                     // CALL $matrix_to_pyr
+0xD9,0x04,0xE4,                 // FLD DWORD PTR [ESP]
+0xD8,0x06,                      // FADD DWORD PTR [ESI]
+0xD9,0x1C,0xE4,                 // FSTP DWORD PTR [ESP]
+0xD9,0x44,0xE4,0x04,            // FLD DWORD PTR [ESP+4]
+0xD8,0x46,0x04,                 // FADD DWORD PTR [ESI+4]
+0xD9,0x5C,0xE4,0x04,            // FSTP DWORD PTR [ESP+4]
+0xD9,0x44,0xE4,0x08,            // FLD DWORD PTR [ESP+8]
+0xD8,0x46,0x08,                 // FADD DWORD PTR [ESI+8]
+0xD9,0x5C,0xE4,0x08,            // FSTP DWORD PTR [ESP+8]
+0x8B,0x44,0xE4,0x0C,            // MOV EAX, DWORD PTR [ESP+0C]
+0x54,                           // PUSH ESP
+0x50,                           // PUSH EAX
+0xE8,RELOC,                     // CALL $set_ent_facing
+0x83,0xC4,0x08,                 // ADD ESP, 8
+0x8B,0x4C,0xE4,0x0C,            // MOV ECX, DWORD PTR [ESP+0C]
+0xD9,0x41,0x5C,                 // FLD DWORD PTR [ECX+5C]
+0xD8,0x46,0x18,                 // FADD DWORD PTR [ESI+18]
+0xD9,0x1C,0xE4,                 // FSTP DWORD PTR [ESP]
+0xD9,0x41,0x60,                 // FLD DWORD PTR [ECX+60]
+0xD8,0x46,0x1C,                 // FADD DWORD PTR [ESI+1C]
+0xD9,0x5C,0xE4,0x04,            // FSTP DWORD PTR [ESP+4]
+0xD9,0x41,0x64,                 // FLD DWORD PTR [ECX+64]
+0xD8,0x46,0x20,                 // FADD DWORD PTR [ESI+20]
+0xD9,0x5C,0xE4,0x08,            // FSTP DWORD PTR [ESP+8]
+0x89,0xE2,                      // MOV EDX, ESP
+0xE8,RELOC,                     // CALL $ent_teleport
+0x83,0xC4,0x10,                 // ADD ESP, 10
+0xC3,                           // RETN
+};
+reloc reloc_pos_update_cb[] = {
+    { ICON_CODE_REL, CODE_GET_TARGET },
+    { COH_ABS, COHVAR_EDIT_TRANSFORM_ABS },
+    { ICON_CODE_REL, CODE_ENT_SET_FACING },
+    { COH_REL, COHFUNC_ENT_TELEPORT },
+    { COH_REL, COHFUNC_MATRIX_TO_PYR },
+    { ICON_CODE_REL, CODE_ENT_SET_FACING },
+    { COH_REL, COHFUNC_ENT_TELEPORT },
+    { RELOC_END, 0 }
+};
+
+unsigned char code_ent_set_facing[] = {
+0x55,                           // PUSH EBP
+0x89,0xE5,                      // MOV EBP, ESP
+0x56,                           // PUSH ESI
+0x57,                           // PUSH EDI
+0x8B,0x45,0x08,                 // MOV EAX, DWORD PTR [EBP+8]
+0x8D,0x40,0x38,                 // LEA EAX, [EAX+38]
+0x8B,0x75,0x0C,                 // MOV ESI, DWORD PTR [EBP+C]
+0xE8,RELOC,                     // CALL $matrix_from_pyr
+0x8B,0x45,0x08,                 // MOV EAX, DWORD PTR [EBP+8]
+0x3B,0x05,RELOC,                // CMP EAX, DWORD PTR [$player_ent]
+0x75,0x0F,                      // JNE SHORT out
+0xBF,RELOC,                     // MOV EDI, OFFSET $controls
+0x8D,0x7F,0x04,                 // LEA EDI, [EDI+4]
+0xB9,0x03,0x00,0x00,0x00,       // MOV ECX, 3
+0xF3,0xA5,                      // REP MOVSD [EDI], [ESI]
+// out:
+0x5F,                           // POP EDI
+0x5E,                           // POP ESI
+0xC9,                           // LEAVE
+0xC3,                           // RETN
+};
+reloc reloc_ent_set_facing[] = {
+    { COH_REL, COHFUNC_MATRIX_FROM_PYR },
+    { COH_ABS, COHVAR_PLAYER_ENT },
+    { COH_ABS, COHVAR_CONTROLS },
+    { COH_REL, COHFUNC_MATRIX_FROM_PYR },
+    { RELOC_END, 0 }
+};
+
 #define CODE(id, c, r) { CODE_##id, 0, sizeof(c), c, r }
 codedef icon_code[] = {
     CODE(ENTER_GAME, code_enter_game, reloc_enter_game),
+    CODE(SETUP_BINDS, code_setup_binds, reloc_setup_binds),
+    CODE(CMD_HANDLER, code_cmd_handler, reloc_cmd_handler),
     CODE(GENERIC_MOV, code_generic_mov, reloc_generic_mov),
     CODE(GET_TARGET, code_get_target, reloc_get_target),
     CODE(KEY_HOOK, code_key_hook, reloc_key_hook),
     CODE(KEY_FLY, code_key_fly, reloc_key_fly),
     CODE(KEY_TORCH, code_key_torch, reloc_key_torch),
-    CODE(KEY_NOCOLL, code_key_nocoll, reloc_key_nocoll),
-    CODE(KEY_SEEALL, code_key_seeall, reloc_key_seeall),
+    CODE(CMD_NOCOLL, code_cmd_nocoll, reloc_cmd_nocoll),
+    CODE(CMD_SEEALL, code_cmd_seeall, reloc_cmd_seeall),
+    CODE(KEY_COORDS, code_key_coords, reloc_key_coords),
     CODE(KEY_DETACH, code_key_detach, reloc_key_detach),
     CODE(KEY_LOADMAP, code_key_loadmap, reloc_key_loadmap),
     CODE(LOADMAP_CB, code_loadmap_cb, reloc_loadmap_cb),
+    CODE(POS_UPDATE_CB, code_pos_update_cb, reloc_pos_update_cb),
+    CODE(ENT_SET_FACING, code_ent_set_facing, reloc_ent_set_facing),
     { 0, 0, 0, 0 }
 };
 #undef CODE
@@ -387,6 +576,8 @@ static void InitCode() {
 unsigned long CodeAddr(int id) {
     if (!codedef_cache)
         InitCode();
+    if (!codedef_cache[id])
+        return 0;
     return iconCodeBase + codedef_cache[id]->offset;
 }
 
@@ -422,6 +613,9 @@ static void RelocAddr(codedef *cd, unsigned long addr, reloc *r) {
         case COH_ABS:
         case COH_REL:
             val = CohAddr(r->id);
+            break;
+        case IMMEDIATE:
+            val = r->id;
             break;
         default:
             Bailout("Unhandled relocation type");

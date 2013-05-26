@@ -10,6 +10,7 @@
 #include "strings.h"
 
 static DWORD iconStrBase = 0;
+static DWORD strDynamic = 0;
 static DWORD *stringoffset_cache = 0;
 
 typedef struct {
@@ -34,6 +35,10 @@ static stringmap icon_strs[] = {
     STR(MAP_POCKETD, "maps/City_Zones/City_02_04/City_02_04.txt"),
     STR(MAP_NOVA, "maps/City_Zones/P_City_00_01/P_City_00_01.txt"),
     STR(MAP_IMPERIAL, "maps/City_Zones/P_City_00_02/P_City_00_02.txt"),
+    STR(CMD_MAPDEV, "map_dev"),
+    STR(CMD_MAPDEV_HELP, "Toggles display of hidden developer markers."),
+    STR(CMD_NOCLIP, "no_clip"),
+    STR(CMD_NOCLIP_HELP, "Toggles no-clipping mode."),
     { 0, 0, 0 },
 };
 
@@ -55,6 +60,7 @@ static void InitStrings() {
 
     if (o > ICON_STR_SIZE)
         Bailout("String section overflow");
+    strDynamic = o;
 }
 
 unsigned long StringAddr(int id) {
@@ -70,4 +76,21 @@ void WriteStrings() {
 	PutData(StringAddr(sm->id), sm->str, sm->sz);
 	++sm;
     }
+}
+
+unsigned long AddString(const char *str) {
+    unsigned long ret;
+    int l;
+    if (!stringoffset_cache)
+        InitStrings();
+  
+    ret = iconStrBase + strDynamic;
+    l = strlen(str) + 1;
+
+    if (strDynamic + l > ICON_STR_SIZE)
+        Bailout("String section overflow");
+    PutData(ret, str, l);
+    strDynamic += l;
+
+    return ret;
 }
