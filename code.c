@@ -144,6 +144,9 @@ reloc reloc_enter_game[] = {
 };
 
 unsigned char code_setup_binds[] = {
+0x68,RELOC,                         // PUSH $commands
+0xE8,RELOC,                         // CALL $cmd_init
+0x83,0xC4,0x04,                     // ADD ESP, 4
 0x68,0x10,0x30,0x00,0x00,           // PUSH 3010
 0x6A,0x01,                          // PUSH 1
 0xE8,RELOC,                         // CALL $calloc
@@ -170,6 +173,8 @@ unsigned char code_setup_binds[] = {
 0xC3,                               // RETN
 };
 reloc reloc_setup_binds[] = {
+    { ICON_DATA, DATA_COMMANDS },
+    { COH_REL, COHFUNC_CMD_INIT },
     { COH_REL, COHFUNC_CALLOC },
     { ICON_DATA, DATA_BINDS },
     { COH_REL, COHFUNC_BIND_PUSH },
@@ -185,6 +190,8 @@ unsigned char code_cmd_handler[] = {
 0x55,                           // PUSH EBP
 0x89,0xE5,                      // MOV EBP, ESP
 0x81,0xEC,0x60,0x04,0x00,0x00,  // SUB ESP, 460
+0x53,                           // PUSH EBX
+0x56,                           // PUSH ESI
 0x57,                           // PUSH EDI
 0x8D,0x85,0xA0,0xFB,0xFF,0xFF,  // LEA EAX, [EBP-460]
 0x8B,0x7D,0x08,                 // MOV EDI, DWORD PTR [EBP+8]
@@ -193,16 +200,18 @@ unsigned char code_cmd_handler[] = {
 0xE8,RELOC,                     // CALL $cmd_parse
 0x83,0xC4,0x08,                 // ADD ESP, 8
 0x85,0xC0,                      // TEST EAX,EAX
-0x74,0x13,                      // JNZ SHORT out
+0x74,0x17,                      // JNZ SHORT out
 0x8B,0x78,0x08,                 // MOV EDI, DWORD PTR [EAX+8]
 0x8B,0x14,0xBD,RELOC,           // MOV EDX, DWORD PTR [EDI*4+$command_funcs]
 0x31,0xC0,                      // XOR EAX, EAX
 0x85,0xD2,                      // TEST EDX, EDX
-0x74,0x03,                      // JZ SHORT out
+0x74,0x07,                      // JZ SHORT out
 0xFF,0xD2,                      // CALL EDX
-0x40,                           // INC EAX
+0xB8,0x01,0x00,0x00,0x00,       // MOV EAX, 1
 // out:
 0x5F,                           // POP EDI
+0x5E,                           // POP ESI
+0x5B,                           // POP EBX
 0xC9,                           // LEAVE
 0xC3                            // RETN
 };
@@ -257,44 +266,40 @@ reloc reloc_get_target[] = {
     { RELOC_END, 0 }
 };
 
-unsigned char code_key_hook[] = {
-0xF6,0x44,0xE4,0x0C,0x80,           // 0000 TEST BYTE PTR SS:[ESP+0C],80
-0x60,                               // 0005 PUSHAD
-
-0x75,0x07,                          // 0006 JNE SHORT 000F
-0x61,                               // 0008 POPAD
-0xA1,RELOC,                         // 0009 MOV EAX,DWORD PTR DS:[$binds]
-0xC3,                               // 000E RETN
-0x83,0xFE,0x7F,                     // 000F CMP ESI, 7F
-0x77,0xF4,                          // 0012 JA SHORT 0008
-0x8B,0x14,0xB5,RELOC,               // 0014 MOV EDX, DWORD PTR [ESI*4+$kbhooks]
-0x85,0xD2,                          // 001B TEST EDX,EDX
-0x74,0xE9,                          // 001D JZ SHORT 0008
-0xFF,0xD2,                          // 001F CALL EDX
-0xEB,0xE5,                          // 0021 JMP SHORT 0008
+unsigned char code_loadmap[] = {
+0x8B,0x44,0xE4,0x04,                // MOV EAX, [ESP+4]
+0x85,0xC0,                          // TEST EAX, EAX
+0x75,0x01,                          // JNZ ok
+0xC3,                               // RETN
+// ok:
+0x50,                               // PUSH EAX
+0xE8,RELOC,                         // CALL $map_clear
+0x58,                               // POP EAX
+0xE8,RELOC,                         // CALL $load_map_demo
+0xC3,                               // RETN
 };
-reloc reloc_key_hook[] = {
-    { COH_ABS, COHVAR_BINDS },
-    { ICON_DATA, DATA_KBHOOKS },
+reloc reloc_loadmap[] = {
+    { COH_REL, COHFUNC_MAP_CLEAR },
+    { COH_REL, COHFUNC_LOAD_MAP_DEMO },
     { RELOC_END, 0 }
 };
 
-unsigned char code_key_fly[] = {
+unsigned char code_cmd_fly[] = {
 0x8B,0x3D,RELOC,                    // 0000 MOV EDI,DWORD PTR [$player_ent]
 0x8B,0x7F,0x2C,                     // 0006 MOV EDI,DWORD PTR DS:[EDI+2C]
 0x8D,0xBF,0xA8,0x00,0x00,0x00,      // 0009 LEA EDI,[EDI+0A8]
-0xBD,RELOC,                         // 000F MOV EBP,OFFSET $controls_from_server
+0xBA,RELOC,                         // 000F MOV EDX,OFFSET $controls_from_server
 0xB1,0x01,                          // 0014 MOV CL,1
 0xB3,0x08,                          // 0016 MOV BL,8
 0x30,0x4F,0x3C,                     // 0018 XOR BYTE PTR DS:[EDI+3C],CL
 0x84,0x4F,0x3C,                     // 001B TEST BYTE PTR DS:[EDI+3C],CL
 0x74,0x0F,                          // 001E JE SHORT 002F
-0x08,0x5D,0x3C,                     // 0020 OR BYTE PTR SS:[EBP+3C],BL
+0x08,0x5A,0x3C,                     // 0020 OR BYTE PTR DS:[EDX+3C],BL
 0xB8,0x00,0x00,0x20,0x41,           // 0023 MOV EAX,41200000
 0xBB,0x00,0x00,0xA0,0x40,           // 0028 MOV EBX,40A00000
 0xEB,0x0C,                          // 002D JMP SHORT 003B
 0xF6,0xD3,                          // 002F NOT BL
-0x20,0x5D,0x3C,                     // 0031 AND BYTE PTR SS:[EBP+3C],BL
+0x20,0x5A,0x3C,                     // 0031 AND BYTE PTR SS:[EDX+3C],BL
 0xB8,0x00,0x00,0x80,0x3F,           // 0034 MOV EAX,3F800000
 0x89,0xC3,                          // 0039 MOV EBX,EAX
 0x89,0x5F,0x0C,                     // 003B MOV DWORD PTR DS:[EDI+0C],EBX
@@ -303,13 +308,13 @@ unsigned char code_key_fly[] = {
 0x89,0x5F,0x38,                     // 0044 MOV DWORD PTR DS:[EDI+38],EBX
 0xC3,                               // 0047 RETN
 };
-reloc reloc_key_fly[] = {
+reloc reloc_cmd_fly[] = {
     { COH_ABS, COHVAR_PLAYER_ENT },
     { COH_ABS, COHVAR_CONTROLS_FROM_SERVER },
     { RELOC_END, 0 }
 };
 
-unsigned char code_key_torch[] = {
+unsigned char code_cmd_torch[] = {
 0x8B,0x15,RELOC,                    // 0000 MOV EDX,DWORD PTR [$player_ent]
 0xB8,RELOC,                         // 0006 MOV EAX, OFFSET $holdtorch
 0x50,                               // 000B PUSH EAX
@@ -318,7 +323,7 @@ unsigned char code_key_torch[] = {
 0x83,0xC4,0x08,                     // 0012 ADD ESP,8
 0xC3,                               // 0015 RETN
 };
-reloc reloc_key_torch[] = {
+reloc reloc_cmd_torch[] = {
     { COH_ABS, COHVAR_PLAYER_ENT },
     { ICON_STR, STR_HOLDTORCH },
     { ICON_CODE_REL, CODE_GENERIC_MOV },
@@ -356,17 +361,17 @@ reloc reloc_cmd_seeall[] = {
     { RELOC_END, 0 }
 };
 
-unsigned char code_key_coords[] = {
+unsigned char code_cmd_coords[] = {
 0xBA,RELOC,                         // 0000 MOV EDX, OFFSET $draw_edit_bar
 0x83,0x32,0x01,                     // 0005 XOR DWORD PTR [EDX], 1
 0xC3,                               // 0008 RETN
 };
-reloc reloc_key_coords[] = {
+reloc reloc_cmd_coords[] = {
     { COH_ABS, COHVAR_DRAW_EDIT_BAR },
     { RELOC_END, 0 }
 };
 
-unsigned char code_key_detach[] = {
+unsigned char code_cmd_detach[] = {
 0x8B,0x15,RELOC,                    // 0000 MOV EDX, DWORD PTR [$is_detached]
 0x83,0xF2,0x01,                     // 0006 XOR EDX, 1
 0x52,                               // 0009 PUSH EDX
@@ -385,7 +390,7 @@ unsigned char code_key_detach[] = {
 0x83,0xC4,0x08,                     // 0030 ADD ESP, 8
 0xC3,                               // 0033 RETN
 };
-reloc reloc_key_detach[] = {
+reloc reloc_cmd_detach[] = {
     { COH_ABS, COHVAR_CAM_IS_DETACHED },
     { COH_ABS, COHVAR_CAMERA },
     { COH_REL, COHFUNC_DETACH_CAMERA },
@@ -395,7 +400,19 @@ reloc reloc_key_detach[] = {
     { RELOC_END, 0 }
 };
 
-unsigned char code_key_loadmap[] = {
+unsigned char code_cmd_loadmap[] = {
+0x68,RELOC,                         // PUSH $param1
+0xE8,RELOC,                         // CALL $loadmap
+0x83,0xC4,0x04,                     // ADD ESP, 4
+0xC3,                               // RETN
+};
+reloc reloc_cmd_loadmap[] = {
+    { ICON_DATA, DATA_PARAM1 },
+    { ICON_CODE_REL, CODE_LOADMAP },
+    { RELOC_END, 0 }
+};
+
+unsigned char code_cmd_loadmap_prompt[] = {
 0x6A,0x00,                          // 0000 PUSH 00
 0x68,0xFF,0x00,0x00,0x00,           // 0002 PUSH 00FF
 0x6A,0x00,                          // 0007 PUSH 00
@@ -415,7 +432,7 @@ unsigned char code_key_loadmap[] = {
 0x83,0xC4,0x3C,                     // 002C ADD ESP, 3C
 0xC3,                               // 002F RETN
 };
-reloc reloc_key_loadmap[] = {
+reloc reloc_cmd_loadmap_prompt[] = {
     { ICON_CODE_ABS, CODE_LOADMAP_CB },
     { ICON_STR, STR_MAPFILE },
     { COH_REL, COHFUNC_DIALOG },
@@ -423,19 +440,15 @@ reloc reloc_key_loadmap[] = {
 };
 
 unsigned char code_loadmap_cb[] = {
-0xE8,RELOC,                         // 0000 CALL $dialog_get_text
-0x75,0x01,                          // 0005 JNZ 0008
-0xC3,                               // 0007 RETN
-0x50,                               // 0008 PUSH EAX
-0xE8,RELOC,                         // 0009 CALL $map_clear
-0x58,                               // 000E POP EAX
-0xE8,RELOC,                         // 000F CALL $load_map_demo
+0xE8,RELOC,                         // CALL $dialog_get_text
+0x50,                               // PUSH EAX
+0xE8,RELOC,                         // CALL $loadmap
+0x83,0xC4,0x04,                     // ADD ESP, 4
 0xC3,                               // RETN
 };
 reloc reloc_loadmap_cb[] = {
     { COH_REL, COHFUNC_DIALOG_GET_TEXT },
-    { COH_REL, COHFUNC_MAP_CLEAR },
-    { COH_REL, COHFUNC_LOAD_MAP_DEMO },
+    { ICON_CODE_REL, CODE_LOADMAP },
     { RELOC_END, 0 }
 };
 
@@ -537,14 +550,15 @@ codedef icon_code[] = {
     CODE(CMD_HANDLER, code_cmd_handler, reloc_cmd_handler),
     CODE(GENERIC_MOV, code_generic_mov, reloc_generic_mov),
     CODE(GET_TARGET, code_get_target, reloc_get_target),
-    CODE(KEY_HOOK, code_key_hook, reloc_key_hook),
-    CODE(KEY_FLY, code_key_fly, reloc_key_fly),
-    CODE(KEY_TORCH, code_key_torch, reloc_key_torch),
+    CODE(LOADMAP, code_loadmap, reloc_loadmap),
+    CODE(CMD_FLY, code_cmd_fly, reloc_cmd_fly),
+    CODE(CMD_TORCH, code_cmd_torch, reloc_cmd_torch),
     CODE(CMD_NOCOLL, code_cmd_nocoll, reloc_cmd_nocoll),
     CODE(CMD_SEEALL, code_cmd_seeall, reloc_cmd_seeall),
-    CODE(KEY_COORDS, code_key_coords, reloc_key_coords),
-    CODE(KEY_DETACH, code_key_detach, reloc_key_detach),
-    CODE(KEY_LOADMAP, code_key_loadmap, reloc_key_loadmap),
+    CODE(CMD_COORDS, code_cmd_coords, reloc_cmd_coords),
+    CODE(CMD_DETACH, code_cmd_detach, reloc_cmd_detach),
+    CODE(CMD_LOADMAP, code_cmd_loadmap, reloc_cmd_loadmap),
+    CODE(CMD_LOADMAP_PROMPT, code_cmd_loadmap_prompt, reloc_cmd_loadmap_prompt),
     CODE(LOADMAP_CB, code_loadmap_cb, reloc_loadmap_cb),
     CODE(POS_UPDATE_CB, code_pos_update_cb, reloc_pos_update_cb),
     CODE(ENT_SET_FACING, code_ent_set_facing, reloc_ent_set_facing),

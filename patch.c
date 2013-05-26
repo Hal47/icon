@@ -145,9 +145,6 @@ void PatchI24() {
     // nocoll command
     bmagic(0x00BD12A4, 1, 0);
 
-    // hook keyboard
-    PutCall(0x005C94E0, CodeAddr(CODE_KEY_HOOK));
-
     // turn on invert mouse
     bmagic(0x00B34E00, 0, 1);
 
@@ -171,13 +168,6 @@ void PatchI24() {
     bmagic(0x00440E00, 0xD920488D, 0xD938488D);     // 20 -> 38
     bmagic(0x00440E0C, 0x5CD94840, 0x5CD96040);     // 48 -> 60
     bmagic(0x00440E14, 0x245CD94C, 0x245CD964);     // 4C -> 64
-/*
-    bmagic(0x00440E28, 0x8A302444, 0xB9302444);
-    bmagic(0x00440E2C, 0xDD7EFF0D, 0x00DD7EFF);
-    bmagic(0x00440E30, 0x2444D900, 0x2444D990);
-    bmagic(0x00440E34, 0xD9C9842C, 0xD901B42C);
-    bmagic(0x00440E38, 0x74282444, 0x88282444);
-    bmagic(0x00440E3C, 0x2444D942, 0x2444D921); */
 
     // Don't check editor selection stuff
     bmagic(0x00440E8F, 0x44D96175, 0x44D99090);     // NOP out the JNE

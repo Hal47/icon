@@ -39,6 +39,17 @@ static stringmap icon_strs[] = {
     STR(CMD_MAPDEV_HELP, "Toggles display of hidden developer markers."),
     STR(CMD_NOCLIP, "no_clip"),
     STR(CMD_NOCLIP_HELP, "Toggles no-clipping mode."),
+    STR(CMD_FLY, "fly"),
+    STR(CMD_FLY_HELP, "Take to the skies!"),
+    STR(CMD_TORCH, "rememberap33"),
+    STR(CMD_TORCH_HELP, "Raise a torch in remembrance of all the heroes who keep hope alive."),
+    STR(CMD_COORDS, "editpos"),
+    STR(CMD_COORDS_HELP, "Open a window to view and edit the player position."),
+    STR(CMD_DETACH, "detach_camera"),
+    STR(CMD_DETACH_HELP, "Detaches the camera from the player and allows it to be moved freely."),
+    STR(CMD_LOADMAP, "loadmap"),
+    STR(CMD_LOADMAP_HELP, "Loads the specified map."),
+    STR(CMD_LOADMAP_PROMPT, "loadmap_prompt"),
     { 0, 0, 0 },
 };
 

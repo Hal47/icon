@@ -63,6 +63,12 @@ typedef struct {
 } command;
 
 command icon_commands[] = {
+    { 0, STR_CMD_FLY, CODE_CMD_FLY, {{ 0 }}, 1, STR_CMD_FLY_HELP },
+    { 0, STR_CMD_TORCH, CODE_CMD_TORCH, {{ 0 }}, 1, STR_CMD_TORCH_HELP },
+    { 0, STR_CMD_LOADMAP, CODE_CMD_LOADMAP, {{ ARG_LINE, DATA_PARAM1, 255 }}, 1, STR_CMD_LOADMAP_HELP },
+    { 0, STR_CMD_LOADMAP_PROMPT, CODE_CMD_LOADMAP_PROMPT, {{ 0 }}, 9 },
+    { 0, STR_CMD_DETACH, CODE_CMD_DETACH, {{ 0 }}, 1, STR_CMD_DETACH_HELP },
+    { 0, STR_CMD_COORDS, CODE_CMD_COORDS, {{ 0 }}, 1, STR_CMD_COORDS_HELP },
     { 0, STR_CMD_MAPDEV, CODE_CMD_SEEALL, {{ 0 }}, 1, STR_CMD_MAPDEV_HELP },
     { 0, STR_CMD_NOCLIP, CODE_CMD_NOCOLL, {{ 0 }}, 1, STR_CMD_NOCLIP_HELP },
     { 0 }
@@ -90,6 +96,11 @@ typedef struct {
 } bind_ent;
 
 bind_ent icon_bind_list[] = {
+    { "1", STR_CMD_FLY },
+    { "2", STR_CMD_TORCH },
+    { "f1", STR_CMD_LOADMAP_PROMPT },
+    { "f2", STR_CMD_DETACH },
+    { "f3", STR_CMD_COORDS },
     { "f4", STR_CMD_MAPDEV },
     { "f5", STR_CMD_NOCLIP },
     { 0, 0 },
@@ -98,13 +109,12 @@ bind_ent icon_bind_list[] = {
 static datamap icon_data[] = {
     { DATA_ZONE_MAP, 6*sizeof(DWORD), 0 },
     { DATA_SPAWNCOORDS, sizeof(spawncoords), spawncoords },
-    { DATA_KBHOOKS, 0x80*sizeof(DWORD), 0 },
     { DATA_BIND_LIST, sizeof(icon_bind_list), icon_bind_list },
     { DATA_BINDS, sizeof(DWORD), 0 },
     { DATA_COMMANDS, sizeof(icon_commands), icon_commands },
     { DATA_COMMAND_LIST, sizeof(icon_command_list), &icon_command_list },
     { DATA_COMMAND_FUNCS, CODE_END*sizeof(DWORD), 0 },
-//    { DATA_PARAM1, 255, 0 },
+    { DATA_PARAM1, 255, 0 },
     { 0, 0, 0 }
 };
 
@@ -119,7 +129,7 @@ static void FixupCommands() {
             c->help = StringAddr(c->help);
         if (c->callback)
             c->callback = CodeAddr(c->callback);
-        for (i = 0; i < c->nargs; i++) {
+        for (i = 0; i < 11; i++) {
             if (c->args[i].out > 0)
                 c->args[i].out = DataAddr(c->args[i].out);
         }
@@ -168,7 +178,7 @@ unsigned long DataAddr(int id) {
 }
 
 void WriteData() {
-    unsigned long *hooks;
+    unsigned long *cmdmap;
     DWORD zoneMap[6];
     int i, l;
 
@@ -186,25 +196,12 @@ void WriteData() {
     }
     PutData(DataAddr(DATA_ZONE_MAP), (char*)zoneMap, sizeof(zoneMap));
 
-    l = 0x80 * sizeof(DWORD);
-    hooks = calloc(1, l);
-    // Set up hooks for keycodes
-    hooks[2] = CodeAddr(CODE_KEY_FLY);
-    hooks[3] = CodeAddr(CODE_KEY_TORCH);
-    hooks[0x3B] = CodeAddr(CODE_KEY_LOADMAP);    // F1
-    hooks[0x3C] = CodeAddr(CODE_KEY_DETACH);     // F2
-    hooks[0x3D] = CodeAddr(CODE_KEY_COORDS);     // F3
-//    hooks[0x3E] = CodeAddr(CODE_KEY_SEEALL);     // F4
-//    hooks[0x3F] = CodeAddr(CODE_KEY_NOCOLL);     // F5
-    PutData(DataAddr(DATA_KBHOOKS), (char*)hooks, l);
-    free(hooks);
-
     // Do generic command mapping
     l = CODE_END * sizeof(DWORD);
-    hooks = calloc(1, l);
+    cmdmap = calloc(1, l);
     for (i = 1; i < CODE_END; i++) {
-        hooks[i] = CodeAddr(i);
+        cmdmap[i] = CodeAddr(i);
     }
-    PutData(DataAddr(DATA_COMMAND_FUNCS), (char*)hooks, l);
-    free(hooks);
+    PutData(DataAddr(DATA_COMMAND_FUNCS), (char*)cmdmap, l);
+    free(cmdmap);
 }
