@@ -80,7 +80,7 @@ void PutRelAddr(unsigned int addr, unsigned int dest) {
 // This writes 5 bytes at addr
 void PutCall(unsigned int addr, unsigned int dest) {
     unsigned char temp[5];
-    temp[0] = 0xE5;
+    temp[0] = 0xE8;
     *(unsigned int*)(temp + 1) = CalcRelAddr(addr + 1, dest);
     PutData(addr, temp, 5);
 }
