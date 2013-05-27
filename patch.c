@@ -246,10 +246,11 @@ void PatchI24() {
     // Don't check editor selection stuff
     bmagic(0x00440E8F, 0x44D96175, 0x44D99090);     // NOP out the JNE
 
+    // Hook 'user entered new coordinates' 
     PutCall(0x00440FE0, CodeAddr(CODE_POS_UPDATE_CB));
     bmagic(0x00440FEC, 0x30A13E74, 0x30A137EB);     // Jump to end after hook
 
-    // and here too
+    // skip editor stuff here too
     bmagic(0x004406C7, 0x7E8B1174, 0x7E8B9090);
     bmagic(0x0044078C, 0xC1950F01, 0x9001B101);
     bmagic(0x0044079C, 0x07750001, 0x07EB0001);
@@ -257,7 +258,6 @@ void PatchI24() {
     bmagic(0x00440894, 0x75000161, 0xEB000161);
 
     // Display editor toolbar in main loop
-//    bmagic(0x00838DC8, 0x0A301D39, 0xE9B01D39);
     bmagic(0x00838DCA, 0x01670A30, DataAddr(DATA_SHOW_TOOLBAR));
     bmagic(0x00838DD0, 0x62B405D9, 0x5404EC83);
     bmagic(0x00838DD4, 0x1DD900A6, 0xC07F07E8);
@@ -348,10 +348,11 @@ void PatchI23() {
     // Don't check editor selection stuff
     bmagic(0x00440DAF, 0x44D96175, 0x44D99090);     // NOP out the JNE
 
+    // Hook 'user entered new coordinates' 
     PutCall(0x00440F00, CodeAddr(CODE_POS_UPDATE_CB));
     bmagic(0x00440F0C, 0xD0A13E74, 0xD0A137EB);     // Jump to end after hook
 
-    // and here too
+    // skip editor stuff here too
     bmagic(0x004405A9, 0x7D8B1174, 0x7D8B9090);
     bmagic(0x0044066F, 0x8DC1950F, 0x8D9001B1);
     bmagic(0x00440680, 0x7D834175, 0x7D8341EB);

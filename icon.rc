@@ -2,8 +2,8 @@
 #define AppIconID 1
 #define RT_MANIFEST 24
 1 VERSIONINFO
-FILEVERSION     1,2,0,0
-PRODUCTVERSION  1,2,0,0
+FILEVERSION     1,5,0,0
+PRODUCTVERSION  1,5,0,0
 BEGIN
   BLOCK "StringFileInfo"
   BEGIN
@@ -11,12 +11,12 @@ BEGIN
     BEGIN
       VALUE "CompanyName", "Titan Network"
       VALUE "FileDescription", "Icon"
-      VALUE "FileVersion", "1.20"
+      VALUE "FileVersion", "1.50"
       VALUE "InternalName", "Icon"
       VALUE "LegalCopyright", "Titan Network"
       VALUE "OriginalFilename", "icon.exe"
       VALUE "ProductName", "Icon"
-      VALUE "ProductVersion", "1.20"
+      VALUE "ProductVersion", "1.50"
     END
   END
 
