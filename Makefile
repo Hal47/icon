@@ -11,8 +11,8 @@ icon.rc.o: icon.rc
 	$(WINDRES) -o icon.rc.o icon.rc
 
 code.o: code.c icon.h util.h code.h data.h strings.h patch.h
-data.o: data.c icon.h util.h code.h data.h strings.h
-patch.o: patch.c icon.h util.h code.h patch.h
+data.o: data.c icon.h util.h code.h data.h strings.h patch.h
+patch.o: patch.c icon.h util.h code.h data.h patch.h
 strings.o: strings.c icon.h util.h strings.h
 util.o: util.c icon.h
 

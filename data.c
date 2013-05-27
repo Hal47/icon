@@ -10,6 +10,7 @@
 #include "code.h"
 #include "data.h"
 #include "strings.h"
+#include "patch.h"
 
 static DWORD iconDataBase = 0;
 static DWORD *dataoffset_cache = 0;
@@ -31,7 +32,7 @@ static float spawncoords[] =
 };
 
 enum {
-    ARG_INT,
+    ARG_INT = 1,
     ARG_UNSIGNED,
     ARG_FLOAT,
     ARG_UNK1,
@@ -62,6 +63,8 @@ typedef struct {
     int     unknown;
 } command;
 
+#define OUT_COH 0x80000000
+#define OUT_COH_MASK 0x7FFFFFFF
 command icon_commands[] = {
     { 0, STR_CMD_FLY, CODE_CMD_FLY, {{ 0 }}, 1, STR_CMD_FLY_HELP },
     { 0, STR_CMD_TORCH, CODE_CMD_TORCH, {{ 0 }}, 1, STR_CMD_TORCH_HELP },
@@ -71,6 +74,8 @@ command icon_commands[] = {
     { 0, STR_CMD_COORDS, CODE_CMD_COORDS, {{ 0 }}, 1, STR_CMD_COORDS_HELP },
     { 0, STR_CMD_MAPDEV, CODE_CMD_SEEALL, {{ 0 }}, 1, STR_CMD_MAPDEV_HELP },
     { 0, STR_CMD_NOCLIP, CODE_CMD_NOCOLL, {{ 0 }}, 1, STR_CMD_NOCLIP_HELP },
+    { 0, STR_CMD_MOV, CODE_CMD_MOV, {{ ARG_STRING, DATA_PARAM1, 255 }}, 1, STR_CMD_MOV_HELP },
+    { 0, STR_CMD_TIME, CODE_END + 1, {{ ARG_FLOAT, OUT_COH | COHVAR_GAME_TIME }}, 0, STR_CMD_TIME_HELP },
     { 0 }
 };
 
@@ -106,6 +111,15 @@ bind_ent icon_bind_list[] = {
     { 0, 0 },
 };
 
+float coyote_pos[3] = {
+    -480, -32, 2024
+};
+float coyote_rot[3] = {
+    0, 3.141592653, 0
+};
+
+int num_ents = 2;
+
 static datamap icon_data[] = {
     { DATA_ZONE_MAP, 6*sizeof(DWORD), 0 },
     { DATA_SPAWNCOORDS, sizeof(spawncoords), spawncoords },
@@ -115,6 +129,10 @@ static datamap icon_data[] = {
     { DATA_COMMAND_LIST, sizeof(icon_command_list), &icon_command_list },
     { DATA_COMMAND_FUNCS, CODE_END*sizeof(DWORD), 0 },
     { DATA_PARAM1, 255, 0 },
+    { DATA_COYOTE_POS, sizeof(coyote_pos), &coyote_pos },
+    { DATA_COYOTE_ROT, sizeof(coyote_rot), &coyote_rot },
+    { DATA_SHOW_TOOLBAR, sizeof(int), 0 },
+    { DATA_NUM_ENTS, sizeof(num_ents), &num_ents },
     { 0, 0, 0 }
 };
 
@@ -130,8 +148,12 @@ static void FixupCommands() {
         if (c->callback)
             c->callback = CodeAddr(c->callback);
         for (i = 0; i < 11; i++) {
-            if (c->args[i].out > 0)
-                c->args[i].out = DataAddr(c->args[i].out);
+            if (c->args[i].out > 0) {
+                if (c->args[i].out & OUT_COH)
+                    c->args[i].out = CohAddr(c->args[i].out & OUT_COH_MASK);
+                else
+                    c->args[i].out = DataAddr(c->args[i].out);
+            }
         }
         ++c;
     }

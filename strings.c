@@ -35,6 +35,11 @@ static stringmap icon_strs[] = {
     STR(MAP_POCKETD, "maps/City_Zones/City_02_04/City_02_04.txt"),
     STR(MAP_NOVA, "maps/City_Zones/P_City_00_01/P_City_00_01.txt"),
     STR(MAP_IMPERIAL, "maps/City_Zones/P_City_00_02/P_City_00_02.txt"),
+    STR(DEFAULT_CLASS, "Class_Scrapper"),
+    STR(DEFAULT_ORIGIN, "Natural"),
+    STR(COYOTE_NAME, "Coyote"),
+    STR(COYOTE_MODEL, "Model_Coyote_NoRing"),
+    STR(COYOTE_MOV, "AtEase_Cycle"),
     STR(CMD_MAPDEV, "map_dev"),
     STR(CMD_MAPDEV_HELP, "Toggles display of hidden developer markers."),
     STR(CMD_NOCLIP, "no_clip"),
@@ -50,6 +55,10 @@ static stringmap icon_strs[] = {
     STR(CMD_LOADMAP, "loadmap"),
     STR(CMD_LOADMAP_HELP, "Loads the specified map."),
     STR(CMD_LOADMAP_PROMPT, "loadmap_prompt"),
+    STR(CMD_MOV, "mov"),
+    STR(CMD_MOV_HELP, "Play an animation given its demorecord MOV name."),
+    STR(CMD_TIME, "time"),
+    STR(CMD_TIME_HELP, "Change the time of date (0-24)"),
     { 0, 0, 0 },
 };
 
