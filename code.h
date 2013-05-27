@@ -35,3 +35,4 @@ enum {
 unsigned long CodeAddr(int id);
 void RelocateCode();
 void WriteCode();
+void FixupCode(int vers);

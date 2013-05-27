@@ -897,3 +897,10 @@ void RelocateCode() {
         ++cd;
     }
 }
+
+// Version-specific workarounds
+void FixupCode(int vers) {
+    if (vers == 23) {
+        code_cmd_detach[0] = 0xC3;      // Missing camera support in I23
+    }
+}

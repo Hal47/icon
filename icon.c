@@ -68,6 +68,7 @@ static void RunPatch() {
     WriteStrings();
     WriteData();
     RelocateCode();
+    FixupCode(vers);
     WriteCode();
 
     if (vers == 23)
