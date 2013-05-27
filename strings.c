@@ -40,6 +40,7 @@ static stringmap icon_strs[] = {
     STR(COYOTE_NAME, "Coyote"),
     STR(COYOTE_MODEL, "Model_Coyote_NoRing"),
     STR(COYOTE_MOV, "AtEase_Cycle"),
+    STR(SPAWNLOCATION, "SpawnLocation"),
     STR(CMD_MAPDEV, "map_dev"),
     STR(CMD_MAPDEV_HELP, "Toggles display of hidden developer markers."),
     STR(CMD_NOCLIP, "no_clip"),

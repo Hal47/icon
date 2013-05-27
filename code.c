@@ -287,11 +287,67 @@ unsigned char code_loadmap[] = {
 0xE8,RELOC,                         // CALL $map_clear
 0x58,                               // POP EAX
 0xE8,RELOC,                         // CALL $load_map_demo
+0xE8,RELOC,                         // CALL $clear_ents
+0x57,                               // PUSH EDI
+0xB9,RELOC,                         // MOV ECX, OFFSET $map_root
+0xB8,RELOC,                         // MOV EAX, OFFSET $map_traverser
+0xE8,RELOC,                         // CALL $walk_map
+0x89,0xC7,                          // MOV EDI,EAX
+0x8B,0x0F,                          // MOV ECX,DWORD PTR [EDI]
+0x85,0xC9,                          // TEST ECX,ECX
+0x74,0x1F,                          // JZ SHORT out
+0x31,0xD2,                          // XOR EDX,EDX
+0xE8,RELOC,                         // CALL $rand
+0xF7,0x37,                          // DIV DWORD PTR [EDI]
+0x8B,0x47,0x08,                     // MOV EAX, DWORD PTR [EDI+8]
+0x8B,0x04,0x90,                     // MOV EAX, DWORD PTR [EAX+EDX*4]
+0x89,0xC2,                          // MOV EDX, EAX
+0x83,0xC2,0x28,                     // ADD EDX, 28
+0x8B,0x0D,RELOC,                    // MOV ECX, $player_ent
+0xE8,RELOC,                         // CALL $ent_teleport
+// out:
+0x89,0xF8,                          // MOV EAX,EDI
+0xE8,RELOC,                         // CALL $free_array
+0x5F,                               // POP EDI
 0xC3,                               // RETN
 };
 reloc reloc_loadmap[] = {
     { COH_REL, COHFUNC_MAP_CLEAR },
     { COH_REL, COHFUNC_LOAD_MAP_DEMO },
+    { COH_REL, COHFUNC_CLEAR_ENTS },
+    { COH_ABS, COHVAR_MAP_ROOT },
+    { ICON_CODE_ABS, CODE_MAP_TRAVERSER },
+    { COH_REL, COHFUNC_WALK_MAP },
+    { COH_REL, COHFUNC_RAND },
+    { COH_ABS, COHVAR_PLAYER_ENT },
+    { COH_REL, COHFUNC_ENT_TELEPORT },
+    { COH_REL, COHFUNC_FREE_ARRAY },
+    { RELOC_END, 0 }
+};
+
+unsigned char code_map_traverser[] = {
+0x55,                           // PUSH EBP
+0x89,0xE5,                      // MOV EBP, ESP
+0x8B,0x55,0x08,                 // MOV EDX, DWORD PTR [EBP+8]
+0x8B,0x12,                      // MOV EDX, DWORD PTR [EDX]
+0xF6,0x42,0x3A,0x02,            // TEST BYTE PTR [EDX+3A], 02
+0x74,0x1B,                      // JZ SHORT nomatch
+0x8B,0xBA,0xE0,0x00,0x00,0x00,  // MOV EDI, DWORD PTR [EDX+E0]
+0x68,RELOC,                     // PUSH OFFSET $spawnlocation
+0xE8,RELOC,                     // CALL $hash_lookup
+0x85,0xC0,                      // TEST EAX, EAX
+0x74,0x07,                      // JZ SHORT nomatch
+0xB8,0x03,0x00,0x00,0x00,       // MOV EAX,3
+0xEB,0x02,                      // JMP SHORT out
+// nomatch:
+0x31,0xC0,                      // XOR EAX, EAX
+// out:
+0xC9,                           // LEAVE
+0xC3,                           // RETN
+};
+reloc reloc_map_traverser[] = {
+    { ICON_STR, STR_SPAWNLOCATION },
+    { COH_REL, COHFUNC_HASH_LOOKUP },
     { RELOC_END, 0 }
 };
 
@@ -714,6 +770,7 @@ codedef icon_code[] = {
     CODE(GENERIC_MOV, code_generic_mov, reloc_generic_mov),
     CODE(GET_TARGET, code_get_target, reloc_get_target),
     CODE(LOADMAP, code_loadmap, reloc_loadmap),
+    CODE(MAP_TRAVERSER, code_map_traverser, reloc_map_traverser),
     CODE(ENT_SET_FACING, code_ent_set_facing, reloc_ent_set_facing),
     CODE(SETUP_TUTORIAL, code_setup_tutorial, reloc_setup_tutorial),
     CODE(CREATE_ENT, code_create_ent, reloc_create_ent),
