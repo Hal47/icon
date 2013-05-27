@@ -1,3 +1,13 @@
+/* vim: set sts=4 sw=4 et: */
+
+/* Titan Icon
+ * Copyright (C) 2013 Titan Network
+ * All Rights Reserved
+ *
+ * This code is for educational purposes only and is not licensed for
+ * redistribution in source form.
+ */
+
 enum {
     CODE_ENTER_GAME = 1,
     CODE_SETUP_BINDS,
@@ -22,13 +32,6 @@ enum {
 
     CODE_LOADMAP_CB,
     CODE_POS_UPDATE_CB,
-/*    CODE_KEY_FX,
-    CODE_FX_CB,
-    CODE_KEY_KILLFX,
-    CODE_KEY_SPAWN,
-    CODE_SPAWNCB,
-    CODE_KEY_KILLENT,
-    CODE_KEY_TARGETMODE, */
     CODE_END,
 };
 

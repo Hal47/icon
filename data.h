@@ -1,3 +1,13 @@
+/* vim: set sts=4 sw=4 et: */
+
+/* Titan Icon
+ * Copyright (C) 2013 Titan Network
+ * All Rights Reserved
+ *
+ * This code is for educational purposes only and is not licensed for
+ * redistribution in source form.
+ */
+
 enum {
     DATA_ZONE_MAP = 1,
     DATA_SPAWNCOORDS,

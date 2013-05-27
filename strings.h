@@ -1,3 +1,13 @@
+/* vim: set sts=4 sw=4 et: */
+
+/* Titan Icon
+ * Copyright (C) 2013 Titan Network
+ * All Rights Reserved
+ *
+ * This code is for educational purposes only and is not licensed for
+ * redistribution in source form.
+ */
+
 enum {
     STR_NOCLIP_ON = 1,
     STR_NOCLIP_OFF,
