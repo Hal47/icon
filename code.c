@@ -801,11 +801,20 @@ codedef icon_code[] = {
 
 static void InitCode() {
     DWORD o = 0;
+    int i;
+    DWORD *temp;
 
     iconCodeBase = (DWORD)VirtualAllocEx(pinfo.hProcess, NULL, ICON_CODE_SIZE,
             MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READ);
     if (!iconCodeBase)
         WBailout("Failed to allocate memory");
+    
+    temp = malloc(ICON_CODE_SIZE);
+    for (i = 0; i < ICON_CODE_SIZE / 4; i++) {
+        temp[i] = 0xcccccccc;
+    }
+    PutData(iconCodeBase, temp, ICON_CODE_SIZE);
+    free(temp);
 
     codedef_cache = calloc(1, sizeof(codedef*) * CODE_END);
     codedef *cd = icon_code;
