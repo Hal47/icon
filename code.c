@@ -813,6 +813,9 @@ static void InitCode() {
         cd->offset = o;
         codedef_cache[cd->id] = cd;
         o += cd->sz;
+        // keep 4-byte alignment of functions
+        if (o % 4)
+            o += 4 - (o % 4);
         ++cd;
     }
 

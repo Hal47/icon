@@ -191,6 +191,9 @@ static void InitData() {
     while (dm && dm->sz) {
         dataoffset_cache[dm->id] = o;
         o += dm->sz;
+        // keep 4-byte alignment of data
+        if (o % 4)
+            o += 4 - (o % 4);
         ++dm;
     }
 

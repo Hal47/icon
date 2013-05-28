@@ -84,6 +84,9 @@ static void InitStrings() {
     while (sm && sm->str) {
         stringoffset_cache[sm->id] = o;
         o += sm->sz;
+        // keep 4-byte alignment of strings
+        if (o % 4)
+            o += 4 - (o % 4);
         ++sm;
     }
 
@@ -120,6 +123,9 @@ unsigned long AddString(const char *str) {
         Bailout("String section overflow");
     PutData(ret, str, l);
     strDynamic += l;
+    // keep 4-byte alignment of strings
+    if (strDynamic % 4)
+        strDynamic += 4 - (strDynamic % 4);
 
     return ret;
 }
