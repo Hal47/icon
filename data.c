@@ -84,6 +84,9 @@ command icon_commands[] = {
     { 0, STR_CMD_NOCLIP, CODE_CMD_NOCOLL, {{ 0 }}, 1, STR_CMD_NOCLIP_HELP },
     { 0, STR_CMD_MOV, CODE_CMD_MOV, {{ ARG_STRING, DATA_PARAM1, 255 }}, 1, STR_CMD_MOV_HELP },
     { 0, STR_CMD_TIME, CODE_END + 1, {{ ARG_FLOAT, OUT_COH | COHVAR_GAME_TIME }}, 0, STR_CMD_TIME_HELP },
+    { 0, STR_CMD_PREVSPAWN, CODE_CMD_PREVSPAWN, {{ 0 }}, 1, STR_CMD_PREVSPAWN_HELP },
+    { 0, STR_CMD_NEXTSPAWN, CODE_CMD_NEXTSPAWN, {{ 0 }}, 1, STR_CMD_NEXTSPAWN_HELP },
+    { 0, STR_CMD_RANDOMSPAWN, CODE_CMD_RANDOMSPAWN, {{ 0 }}, 1, STR_CMD_RANDOMSPAWN_HELP },
     { 0 }
 };
 
@@ -116,6 +119,9 @@ bind_ent icon_bind_list[] = {
     { "f3", STR_CMD_COORDS },
     { "f4", STR_CMD_MAPDEV },
     { "f5", STR_CMD_NOCLIP },
+    { "[", STR_CMD_PREVSPAWN },
+    { "]", STR_CMD_NEXTSPAWN },
+    { "f12", STR_CMD_RANDOMSPAWN },
     { 0, 0 },
 };
 
@@ -141,6 +147,8 @@ static datamap icon_data[] = {
     { DATA_COYOTE_ROT, sizeof(coyote_rot), &coyote_rot },
     { DATA_SHOW_TOOLBAR, sizeof(int), 0 },
     { DATA_NUM_ENTS, sizeof(num_ents), &num_ents },
+    { DATA_SPAWN_LIST, sizeof(DWORD), 0 },
+    { DATA_LAST_SPAWN, sizeof(DWORD), 0 },
     { 0, 0, 0 }
 };
 

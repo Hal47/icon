@@ -53,17 +53,23 @@ static codedef **codedef_cache = 0;
 
 static unsigned char code_enter_game[] = {
 0x60,		                    // 0000 PUSHAD
+// lookup map to load in our data table based on player selection
 0x8B,0x0D,RELOC,                    // 0001 MOV ECX,DWORD PTR [$start_choice]
 0x8B,0x04,0x8D,RELOC,               // 0007 MOV EAX,DWORD PTR DS:[ECX*4+$STR]
 0xE8,RELOC,                         // 000E CALL $load_map_demo
+0xE8,RELOC,                         // CALL $find_spawns
+// get the player entity and its character sub-entry
 0xA1,RELOC,	                    // 0013 MOV EAX,DWORD PTR [$player_ent]
 0x8B,0x80,RELOC,                    // 0018 MOV EAX,DWORD PTR DS:[EAX+$charoff]
-0x50,                               // 001E PUSH EAX
+0x50,                               // 001E PUSH EAX    ; save extra copy
+// copy attributes (HP, end, etc) from class defaults
 0x8D,0x90,0xA4,0x00,0x00,0x00,      // 001F LEA EDX,[EAX+0A4]
 0xE8,RELOC,                         // 0025 CALL $copy_attribs
-0x58,                               // 002A POP EAX
+// do the same for max attribs
+0x58,                               // 002A POP EAX     ; $player_ent+$charoff
 0x8D,0x90,0x3C,0x04,0x00,0x00,      // 002B LEA EDX,[EAX+43C]
 0xE8,RELOC,                         // 0031 CALL $copy_attribs
+// create a keybind table for the player so the game doesn't crash
 0x8B,0x15,RELOC,                    // 0036 MOV EDX,DWORD PTR [$player_ent]
 0x8B,0x52,0x30,                     // 003C MOV EDX,DWORD PTR DS:[EDX+30]
 0x83,0xBA,RELOC,0x00,               // 003F CMP DWORD PTR DS:[EDX+$kboff],0
@@ -75,14 +81,16 @@ static unsigned char code_enter_game[] = {
 0x83,0xC4,0x08,                     // 0055 ADD ESP,8
 0x5A,                               // 0058 POP EDX
 0x89,0x82,RELOC,                    // 0059 MOV DWORD PTR DS:[EDX+$kboff],EAX
+// and initialize it
 0xE8,RELOC,                         // 005F CALL $init_keybinds
 
 // control state stuff
 0xBF,RELOC,	                    // 0064 MOV EDI,OFFSET $controls_from_server
+// populate movement speeds and surface physics
 0xB8,0x00,0x00,0x80,0x3F,           // 0069 MOV EAX,3F800000 (1.f)
 0xB9,0x0F,0x00,0x00,0x00,           // 006E MOV ECX,0F
 0xF3,0xAB,                          // 0073 REP STOS DWORD PTR ES:[EDI]
-// surface physics in entity
+// there's a copy of surface physics in the entity for some reason
 0x8B,0x3D,RELOC,                    // 0075 MOV EDI,DWORD PTR DS:[$player_ent]
 0x8B,0x7F,0x2C,                     // 007B MOV EDI,DWORD PTR DS:[EDI+2C]
 0x8D,0xBF,0xBC,0x00,0x00,0x00,      // 007E LEA EDI,[EDI+0BC]
@@ -101,15 +109,16 @@ static unsigned char code_enter_game[] = {
 0x8B,0x0D,RELOC,                    // 00A9 MOV ECX,DWORD PTR [$player_ent]
 0xE8,RELOC,                         // 00AF CALL $ent_teleport
 
-// set a database ID
+// set a database ID, hardcode 1 for the player
 0xA1,RELOC,	                    // 00B4 MOV EAX,DWORD PTR [$player_ent]
 0x8D,0x50,0x74,                     // 00B9 LEA EDX,[EAX+74]
 0xC7,0x02,0x01,0x00,0x00,0x00,      // 00BC MOV DWORD PTR DS:[EDX], 1
 0x8D,0x90,RELOC,	            // 00C2 LEA EDX,[EAX+$svrid]
 0xC7,0x02,0x01,0x00,0x00,0x00,      // 00C8 MOV DWORD PTR DS:[EDX], 1
+// add it to the entity lookup table, too
 0x31,0xFF,                          // 00CD XOR EDI,EDI
 0x47,                               // 00CF INC EDI
-0x89,0x04,0xBD,RELOC,               // 00D0 MOV DWORD PTR $enttbl+EDI*4, EAX
+0x89,0x04,0xBD,RELOC,               // 00D0 MOV DWORD PTR [$enttbl+EDI*4], EAX
 
 // set edit toolbar to absolute mode
 0x31,0xC0,                          // XOR EAX,EAX
@@ -117,10 +126,13 @@ static unsigned char code_enter_game[] = {
 0xA2,RELOC,                         // MOV BYTE PTR [$edit_transform_abs], AL
 
 0xE8,RELOC,                         // CALL $setup_binds
+
+// add easter egg if they picked the tutorial
 0x8B,0x0D,RELOC,                    // MOV ECX,DWORD PTR [$start_choice]
 0x83,0xF9,0x00,                     // CMP ECX,0
 0x75,0x05,                          // JNE SHORT out:
 0xE8,RELOC,                         // CALL $setup_tutorial
+
 // out:
 0x61,                               // POPAD
 0xC3,                               // RETN
@@ -129,6 +141,7 @@ reloc reloc_enter_game[] = {
     { COH_ABS, COHVAR_START_CHOICE },
     { ICON_DATA, DATA_ZONE_MAP },
     { COH_REL, COHFUNC_LOAD_MAP_DEMO },
+    { ICON_CODE_REL, CODE_FIND_SPAWNS },
     { COH_ABS, COHVAR_PLAYER_ENT },
     { COH_ABS, COHVAR_ENT_CHAR_OFFSET },
     { COH_REL, COHFUNC_COPY_ATTRIBS },
@@ -296,59 +309,108 @@ unsigned char code_loadmap[] = {
 0x58,                               // POP EAX
 0xE8,RELOC,                         // CALL $load_map_demo
 0xE8,RELOC,                         // CALL $clear_ents
-0x57,                               // PUSH EDI
-0xB9,RELOC,                         // MOV ECX, OFFSET $map_root
-0xB8,RELOC,                         // MOV EAX, OFFSET $map_traverser
-0xE8,RELOC,                         // CALL $walk_map
-0x89,0xC7,                          // MOV EDI,EAX
-0x8B,0x0F,                          // MOV ECX,DWORD PTR [EDI]
-0x85,0xC9,                          // TEST ECX,ECX
-0x74,0x1F,                          // JZ SHORT out
-0x31,0xD2,                          // XOR EDX,EDX
-0xE8,RELOC,                         // CALL $rand
-0xF7,0x37,                          // DIV DWORD PTR [EDI]
-0x8B,0x47,0x08,                     // MOV EAX, DWORD PTR [EDI+8]
-0x8B,0x04,0x90,                     // MOV EAX, DWORD PTR [EAX+EDX*4]
-0x89,0xC2,                          // MOV EDX, EAX
-0x83,0xC2,0x28,                     // ADD EDX, 28
-0x8B,0x0D,RELOC,                    // MOV ECX, $player_ent
-0xE8,RELOC,                         // CALL $ent_teleport
-// out:
-0x89,0xF8,                          // MOV EAX,EDI
-0xE8,RELOC,                         // CALL $free_array
-0x5F,                               // POP EDI
+0xE8,RELOC,                         // CALL $find_spawns
+0xE8,RELOC,                         // CALL $cmd_randomspawn
 0xC3,                               // RETN
 };
 reloc reloc_loadmap[] = {
     { COH_REL, COHFUNC_MAP_CLEAR },
     { COH_REL, COHFUNC_LOAD_MAP_DEMO },
     { COH_REL, COHFUNC_CLEAR_ENTS },
-    { COH_ABS, COHVAR_MAP_ROOT },
-    { ICON_CODE_ABS, CODE_MAP_TRAVERSER },
-    { COH_REL, COHFUNC_WALK_MAP },
-    { COH_REL, COHFUNC_RAND },
-    { COH_ABS, COHVAR_PLAYER_ENT },
-    { COH_REL, COHFUNC_ENT_TELEPORT },
-    { COH_REL, COHFUNC_FREE_ARRAY },
+    { ICON_CODE_REL, CODE_FIND_SPAWNS },
+    { ICON_CODE_REL, CODE_CMD_RANDOMSPAWN },
     { RELOC_END, 0 }
 };
 
+unsigned char code_find_spawns[] = {
+// clear out old list if one exists
+0xA1,RELOC,                     // MOV EAX, DWORD PTR [$spawn_list]
+0x85,0xC0,                      // TEST EAX, EAX
+0x74,0x05,                      // JZ nolist
+0xE8,RELOC,                     // CALL $free_array
+// nolist:
+// set up our callback and walk the map
+0xB9,RELOC,                     // MOV ECX, OFFSET $map_root
+0xB8,RELOC,                     // MOV EAX, OFFSET $map_traverser
+0xE8,RELOC,                     // CALL $walk_map
+// save array pointer
+0xA3,RELOC,                     // MOV DWORD PTR [$spawn_list], EAX
+0xC3,                           // RETN
+};
+reloc reloc_find_spawns[] = {
+    { ICON_DATA, DATA_SPAWN_LIST },
+    { COH_REL, COHFUNC_FREE_ARRAY },
+    { COH_ABS, COHVAR_MAP_ROOT },
+    { ICON_CODE_ABS, CODE_MAP_TRAVERSER },
+    { COH_REL, COHFUNC_WALK_MAP },
+    { ICON_DATA, DATA_SPAWN_LIST },
+    { RELOC_END, 0 }
+};
+
+unsigned char code_goto_spawn[] = {
+// get argument passed in on stack
+0x8B,0x44,0xE4,0x04,                // MOV EAX, DWORD PTR [ESP+4]
+0x8B,0x15,RELOC,                    // MOV EDX, DWORD PTR [$spawn_list]
+// make sure it's less than the size of the array
+0x8B,0x0A,                          // MOV ECX, DWORD PTR [EDX]
+0x39,0xC8,                          // CMP EAX, ECX
+0x72,0x03,                          // JB argok
+0xC2,0x04,0x00,                     // RETN 4
+// argok:
+// follow the array pointer itself, then go to the element we want
+0x8B,0x52,0x08,                     // MOV EDX, DWORD PTR [EDX+8]
+0x8B,0x14,0x82,                     // MOV EDX, DWORD PTR [EDX+EAX*4]
+// the location matrix starts at EDX+4, and we want the vector matrix[3]
+0x83,0xC2,0x28,                     // ADD EDX, 28
+// finally, send the player there
+0x8B,0x0D,RELOC,                    // MOV ECX, DWORD PTR [$player_ent]
+0xE8,RELOC,                         // CALL $ent_teleport
+0xC2,0x04,0x00,                     // RETN 4
+};
+reloc reloc_goto_spawn[] = {
+    { ICON_DATA, DATA_SPAWN_LIST },
+    { COH_ABS, COHVAR_PLAYER_ENT },
+    { COH_REL, COHFUNC_ENT_TELEPORT },
+    { RELOC_END, 0 }
+};
+
+// this is a callback that the game's map traverser calls repeatedly
 unsigned char code_map_traverser[] = {
 0x55,                           // PUSH EBP
 0x89,0xE5,                      // MOV EBP, ESP
+// we're passed a pointer to information about this def node
 0x8B,0x55,0x08,                 // MOV EDX, DWORD PTR [EBP+8]
+// get the node itself
 0x8B,0x12,                      // MOV EDX, DWORD PTR [EDX]
+
+// check flags to see if it has any properties
 0xF6,0x42,0x3A,0x02,            // TEST BYTE PTR [EDX+3A], 02
-0x74,0x1B,                      // JZ SHORT nomatch
+0x74,0x20,                      // JZ SHORT nomatch
+// get pointer to the properties hash table
 0x8B,0xBA,0xE0,0x00,0x00,0x00,  // MOV EDI, DWORD PTR [EDX+E0]
+// see if it has a property called "SpawnLocation"
+0x52,                           // PUSH EDX
 0x68,RELOC,                     // PUSH OFFSET $spawnlocation
 0xE8,RELOC,                     // CALL $hash_lookup
+0x83,0xC4,0x04,                 // ADD ESP, 4
+0x5A,                           // POP EDX
 0x85,0xC0,                      // TEST EAX, EAX
 0x74,0x07,                      // JZ SHORT nomatch
+// it does! return 3 to let the traverser know to add this to the results
 0xB8,0x03,0x00,0x00,0x00,       // MOV EAX,3
-0xEB,0x02,                      // JMP SHORT out
+0xEB,0x0F,                      // JMP SHORT out
+
 // nomatch:
+// ok, found nothing, does this node's children have any properties?
+0xF6,0x42,0x3A,0x04,            // TEST BYTE PTR [EDX+3A], 04
+0x75,0x07,                      // JNZ SHORT childrenhaveprops
+// children have no properties, return 2 so the traverser skips them
+0xB8,0x02,0x00,0x00,0x00,       // MOV EAX,2
+0xEB,0x02,                      // JMP SHORT out
+// continue:
+// return 0 so the traverser will keep going
 0x31,0xC0,                      // XOR EAX, EAX
+
 // out:
 0xC9,                           // LEAVE
 0xC3,                           // RETN
@@ -696,6 +758,90 @@ reloc reloc_cmd_mov[] = {
     { RELOC_END, 0 }
 };
 
+unsigned char code_cmd_prevspawn[] = {
+// get size member from array struct
+0xA1,RELOC,                     // MOV EAX, DWORD PTR [$spawn_list]
+0x8B,0x00,                      // MOV EAX, DWORD PTR [EAX]
+// get last spawn
+0x8B,0x0D,RELOC,                // MOV ECX, DWORD PTR [$last_spawn]
+0x49,                           // DEC ECX
+// see if it's still in range using unsigned math so that a rollover below
+// 0 will be "above" the range. this is done so that the logic can work
+// the same as nextspawn.
+0x39,0xC1,                      // CMP ECX, EAX
+0x72,0x03,                      // JB SHORT inrange
+// went below zero, reset it to size - 1
+0x89,0xC1,                      // MOV ECX, EAX
+0x49,                           // DEC ECX
+// inrange:
+0x89,0x0D,RELOC,                // MOV DWORD PTR [$last_spawn], ECX
+0x51,                           // PUSH ECX
+0xE8,RELOC,                     // CALL $goto_spawn
+0xC3,                           // RETN
+};
+reloc reloc_cmd_prevspawn[] = {
+    { ICON_DATA, DATA_SPAWN_LIST },
+    { ICON_DATA, DATA_LAST_SPAWN },
+    { ICON_DATA, DATA_LAST_SPAWN },
+    { ICON_CODE_REL, CODE_GOTO_SPAWN },
+    { RELOC_END, 0 }
+};
+
+unsigned char code_cmd_nextspawn[] = {
+// get size member from array struct
+0xA1,RELOC,                     // MOV EAX, DWORD PTR [$spawn_list]
+0x8B,0x00,                      // MOV EAX, DWORD PTR [EAX]
+// get last spawn
+0x8B,0x0D,RELOC,                // MOV ECX, DWORD PTR [$last_spawn]
+0x41,                           // INC ECX
+// see if it's still in range
+0x39,0xC1,                      // CMP ECX, EAX
+0x72,0x02,                      // JB SHORT inrange
+// too high, go back to 0
+0x31,0xC9,                      // XOR ECX, ECX
+// inrange:
+0x89,0x0D,RELOC,                // MOV DWORD PTR [$last_spawn], ECX
+0x51,                           // PUSH ECX
+0xE8,RELOC,                     // CALL $goto_spawn
+0xC3,                           // RETN
+};
+reloc reloc_cmd_nextspawn[] = {
+    { ICON_DATA, DATA_SPAWN_LIST },
+    { ICON_DATA, DATA_LAST_SPAWN },
+    { ICON_DATA, DATA_LAST_SPAWN },
+    { ICON_CODE_REL, CODE_GOTO_SPAWN },
+    { RELOC_END, 0 }
+};
+
+unsigned char code_cmd_randomspawn[] = {
+0x57,                           // PUSH EDI
+// get size member from array struct
+0x8B,0x3D,RELOC,                // MOV EDI,DWORD PTR [$spawn_list]
+0x8B,0x0F,                      // MOV ECX,DWORD PTR [EDI]
+// make sure we found some, to avoid dividing by zero or worse
+0x85,0xC9,                      // TEST ECX,ECX
+0x74,0x15,                      // JZ SHORT out
+0x31,0xD2,                      // XOR EDX,EDX
+0xE8,RELOC,                     // CALL $rand
+0xF7,0x37,                      // DIV DWORD PTR [EDI]
+// save which one we picked so that prev/next work right
+0x89,0x15,RELOC,                // MOV DWORD PTR [$last_spawn], EDX
+// send the player there
+0x52,                           // PUSH EDX
+0xE8,RELOC,                     // CALL $goto_spawn
+// out:
+0x5F,                           // POP EDI
+0xC3,                           // RETN
+};
+reloc reloc_cmd_randomspawn[] = {
+    { ICON_DATA, DATA_SPAWN_LIST },
+    { COH_REL, COHFUNC_RAND },
+    { ICON_DATA, DATA_LAST_SPAWN },
+    { ICON_CODE_REL, CODE_GOTO_SPAWN },
+    { RELOC_END, 0 }
+};
+
+
 unsigned char code_loadmap_cb[] = {
 0xE8,RELOC,                         // CALL $dialog_get_text
 0x50,                               // PUSH EAX
@@ -778,6 +924,8 @@ codedef icon_code[] = {
     CODE(GENERIC_MOV, code_generic_mov, reloc_generic_mov),
     CODE(GET_TARGET, code_get_target, reloc_get_target),
     CODE(LOADMAP, code_loadmap, reloc_loadmap),
+    CODE(FIND_SPAWNS, code_find_spawns, reloc_find_spawns),
+    CODE(GOTO_SPAWN, code_goto_spawn, reloc_goto_spawn),
     CODE(MAP_TRAVERSER, code_map_traverser, reloc_map_traverser),
     CODE(ENT_SET_FACING, code_ent_set_facing, reloc_ent_set_facing),
     CODE(SETUP_TUTORIAL, code_setup_tutorial, reloc_setup_tutorial),
@@ -792,6 +940,9 @@ codedef icon_code[] = {
     CODE(CMD_LOADMAP, code_cmd_loadmap, reloc_cmd_loadmap),
     CODE(CMD_LOADMAP_PROMPT, code_cmd_loadmap_prompt, reloc_cmd_loadmap_prompt),
     CODE(CMD_MOV, code_cmd_mov, reloc_cmd_mov),
+    CODE(CMD_PREVSPAWN, code_cmd_prevspawn, reloc_cmd_prevspawn),
+    CODE(CMD_NEXTSPAWN, code_cmd_nextspawn, reloc_cmd_nextspawn),
+    CODE(CMD_RANDOMSPAWN, code_cmd_randomspawn, reloc_cmd_randomspawn),
 
     CODE(LOADMAP_CB, code_loadmap_cb, reloc_loadmap_cb),
     CODE(POS_UPDATE_CB, code_pos_update_cb, reloc_pos_update_cb),

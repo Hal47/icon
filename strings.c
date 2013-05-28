@@ -68,6 +68,12 @@ static stringmap icon_strs[] = {
     STR(CMD_MOV_HELP, "Play an animation given its demorecord MOV name."),
     STR(CMD_TIME, "time"),
     STR(CMD_TIME_HELP, "Change the time of date (0-24)"),
+    STR(CMD_PREVSPAWN, "prev_spawn"),
+    STR(CMD_PREVSPAWN_HELP, "Jump to the previous spawn point."),
+    STR(CMD_NEXTSPAWN, "next_spawn"),
+    STR(CMD_NEXTSPAWN_HELP, "Jump to the next spawn point."),
+    STR(CMD_RANDOMSPAWN, "random_spawn"),
+    STR(CMD_RANDOMSPAWN_HELP, "Jump to a random spawn point."),
     { 0, 0, 0 },
 };
 
