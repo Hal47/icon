@@ -194,6 +194,9 @@ void PatchI24() {
     bmagic(0x0045820a, 0xcccccccc, 0x6e757473);
     bmagic(0x0045820e, 0x5553cccc, 0x555368eb);
 
+    // disable costume validation
+    bmagic(0x004A9B60, 0xA108EC83, 0xA1C3C031);
+
     // don't show "hide store pieces" box
     bmagic(0x00719FE5, 2, 1);
 
@@ -294,6 +297,9 @@ void PatchI23() {
     bmagic(0x00458116, 0xcccccccc, 0x75433e81);
     bmagic(0x0045811a, 0xcccccccc, 0x6e757473);
     bmagic(0x0045811e, 0x5553cccc, 0x555368eb);
+
+    // disable costume validation
+    bmagic(0x004A97F0, 0xA108EC83, 0xA1C3C031);
 
     // don't show "hide store pieces" box
     bmagic(0x0071A095, 2, 1);
