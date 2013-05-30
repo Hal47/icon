@@ -51,86 +51,91 @@ static codedef **codedef_cache = 0;
 // Magic sequence to mark a reloc in code
 #define RELOC 0xDE,0xAD,0xAD,0xD0
 
+// ===== enter_game =====
+// Calling convention: N/A
+//      No stack changes, all registers preserved
+// Called by a hook inserted into the main game when the user clicks
+// 'Enter Game'.
 static unsigned char code_enter_game[] = {
-0x60,		                    // 0000 PUSHAD
-// lookup map to load in our data table based on player selection
-0x8B,0x0D,RELOC,                    // 0001 MOV ECX,DWORD PTR [$start_choice]
-0x8B,0x04,0x8D,RELOC,               // 0007 MOV EAX,DWORD PTR DS:[ECX*4+$STR]
-0xE8,RELOC,                         // 000E CALL $load_map_demo
+0x60,                               // PUSHAD
+// Lookup map to load in our data table based on player selection.
+0x8B,0x0D,RELOC,                    // MOV ECX,DWORD PTR [$start_choice]
+0x8B,0x04,0x8D,RELOC,               // MOV EAX,DWORD PTR DS:[ECX*4+$STR]
+0xE8,RELOC,                         // CALL $load_map_demo
 0xE8,RELOC,                         // CALL $find_spawns
-// get the player entity and its character sub-entry
-0xA1,RELOC,	                    // 0013 MOV EAX,DWORD PTR [$player_ent]
-0x8B,0x80,RELOC,                    // 0018 MOV EAX,DWORD PTR DS:[EAX+$charoff]
-0x50,                               // 001E PUSH EAX    ; save extra copy
-// copy attributes (HP, end, etc) from class defaults
-0x8D,0x90,0xA4,0x00,0x00,0x00,      // 001F LEA EDX,[EAX+0A4]
-0xE8,RELOC,                         // 0025 CALL $copy_attribs
-// do the same for max attribs
-0x58,                               // 002A POP EAX     ; $player_ent+$charoff
-0x8D,0x90,0x3C,0x04,0x00,0x00,      // 002B LEA EDX,[EAX+43C]
-0xE8,RELOC,                         // 0031 CALL $copy_attribs
-// create a keybind table for the player so the game doesn't crash
-0x8B,0x15,RELOC,                    // 0036 MOV EDX,DWORD PTR [$player_ent]
-0x8B,0x52,0x30,                     // 003C MOV EDX,DWORD PTR DS:[EDX+30]
-0x83,0xBA,RELOC,0x00,               // 003F CMP DWORD PTR DS:[EDX+$kboff],0
-0x75,0x17,                          // 0046 JNE SHORT 005F
-0x52,                               // 0048 PUSH EDX
-0x68,0x00,0x30,0x00,0x00,           // 0049 PUSH 3000
-0x6A,0x01,                          // 004E PUSH 1
-0xE8,RELOC,                         // 0050 CALL $calloc
-0x83,0xC4,0x08,                     // 0055 ADD ESP,8
-0x5A,                               // 0058 POP EDX
-0x89,0x82,RELOC,                    // 0059 MOV DWORD PTR DS:[EDX+$kboff],EAX
-// and initialize it
-0xE8,RELOC,                         // 005F CALL $init_keybinds
+// Get the player entity and its character sub-entry.
+0xA1,RELOC,                         // MOV EAX,DWORD PTR [$player_ent]
+0x8B,0x80,RELOC,                    // MOV EAX,DWORD PTR DS:[EAX+$charoff]
+0x50,                               // PUSH EAX    ; save extra copy
+// Copy attributes (HP, end, etc) from class defaults.
+0x8D,0x90,0xA4,0x00,0x00,0x00,      // LEA EDX,[EAX+0A4]
+0xE8,RELOC,                         // CALL $copy_attribs
+// Do the same for max attribs.
+0x58,                               // POP EAX     ; $player_ent+$charoff
+0x8D,0x90,0x3C,0x04,0x00,0x00,      // LEA EDX,[EAX+43C]
+0xE8,RELOC,                         // CALL $copy_attribs
+// Create a keybind table for the player so the game doesn't crash...
+0x8B,0x15,RELOC,                    // MOV EDX,DWORD PTR [$player_ent]
+0x8B,0x52,0x30,                     // MOV EDX,DWORD PTR DS:[EDX+30]
+0x83,0xBA,RELOC,0x00,               // CMP DWORD PTR DS:[EDX+$kboff],0
+0x75,0x17,                          // JNE SHORT 005F
+0x52,                               // PUSH EDX
+0x68,0x00,0x30,0x00,0x00,           // PUSH 3000
+0x6A,0x01,                          // PUSH 1
+0xE8,RELOC,                         // CALL $calloc
+0x83,0xC4,0x08,                     // ADD ESP,8
+0x5A,                               // POP EDX
+0x89,0x82,RELOC,                    // MOV DWORD PTR DS:[EDX+$kboff],EAX
+// ...and initialize it.
+0xE8,RELOC,                         // CALL $init_keybinds
 
-// control state stuff
-0xBF,RELOC,	                    // 0064 MOV EDI,OFFSET $controls_from_server
-// populate movement speeds and surface physics
-0xB8,0x00,0x00,0x80,0x3F,           // 0069 MOV EAX,3F800000 (1.f)
-0xB9,0x0F,0x00,0x00,0x00,           // 006E MOV ECX,0F
-0xF3,0xAB,                          // 0073 REP STOS DWORD PTR ES:[EDI]
-// there's a copy of surface physics in the entity for some reason
-0x8B,0x3D,RELOC,                    // 0075 MOV EDI,DWORD PTR DS:[$player_ent]
-0x8B,0x7F,0x2C,                     // 007B MOV EDI,DWORD PTR DS:[EDI+2C]
-0x8D,0xBF,0xBC,0x00,0x00,0x00,      // 007E LEA EDI,[EDI+0BC]
-0xB9,0x0A,0x00,0x00,0x00,           // 0084 MOV ECX,0A
-0xF3,0xAB,                          // 0089 REP STOS DWORD PTR ES:[EDI]
+// Control state stuff.
+0xBF,RELOC,                         // MOV EDI,OFFSET $controls_from_server
+// Populate movement speeds and surface physics.
+0xB8,0x00,0x00,0x80,0x3F,           // MOV EAX,3F800000 (1.f)
+0xB9,0x0F,0x00,0x00,0x00,           // MOV ECX,0F
+0xF3,0xAB,                          // REP STOSD [EDI]
+// There's a copy of surface physics in the entity for some reason.
+0x8B,0x3D,RELOC,                    // MOV EDI,DWORD PTR DS:[$player_ent]
+0x8B,0x7F,0x2C,                     // MOV EDI,DWORD PTR DS:[EDI+2C]
+0x8D,0xBF,0xBC,0x00,0x00,0x00,      // LEA EDI,[EDI+0BC]
+0xB9,0x0A,0x00,0x00,0x00,           // MOV ECX,0A
+0xF3,0xAB,                          // REP STOSD [EDI]
 
-// set the clock
-0x8D,0x15,RELOC,                    // 008B LEA EDX,[$game_time]
-0xC7,0x02,0x00,0x00,0x40,0x41,      // 0091 MOV DWORD PTR DS:[EDX],41400000
+// Set the clock.
+0x8D,0x15,RELOC,                    // LEA EDX,[$game_time]
+0xC7,0x02,0x00,0x00,0x40,0x41,      // MOV DWORD PTR DS:[EDX],41400000
 
-// set player spawn point
-0xA1,RELOC,                         // 0097 MOV EAX,DWORD PTR [$start_choice]
-0xBA,0x0C,0x00,0x00,0x00,           // 009C MOV EDX,0C
-0xF7,0xE2,                          // 00A1 MUL EDX
-0x8D,0x90,RELOC,                    // 00A3 LEA EDX,[EAX+$spawncoords]
-0x8B,0x0D,RELOC,                    // 00A9 MOV ECX,DWORD PTR [$player_ent]
-0xE8,RELOC,                         // 00AF CALL $ent_teleport
+// Set player spawn point.
+0xA1,RELOC,                         // MOV EAX,DWORD PTR [$start_choice]
+0xBA,0x0C,0x00,0x00,0x00,           // MOV EDX,0C
+0xF7,0xE2,                          // MUL EDX
+0x8D,0x90,RELOC,                    // LEA EDX,[EAX+$spawncoords]
+0x8B,0x0D,RELOC,                    // MOV ECX,DWORD PTR [$player_ent]
+0xE8,RELOC,                         // CALL $ent_teleport
 
-// set a database ID, hardcode 1 for the player
-0xA1,RELOC,	                    // 00B4 MOV EAX,DWORD PTR [$player_ent]
-0x8D,0x50,0x74,                     // 00B9 LEA EDX,[EAX+74]
-0xC7,0x02,0x01,0x00,0x00,0x00,      // 00BC MOV DWORD PTR DS:[EDX], 1
-0x8D,0x90,RELOC,	            // 00C2 LEA EDX,[EAX+$svrid]
-0xC7,0x02,0x01,0x00,0x00,0x00,      // 00C8 MOV DWORD PTR DS:[EDX], 1
-// add it to the entity lookup table, too
-0x31,0xFF,                          // 00CD XOR EDI,EDI
-0x47,                               // 00CF INC EDI
-0x89,0x04,0xBD,RELOC,               // 00D0 MOV DWORD PTR [$enttbl+EDI*4], EAX
+// Set a database ID, hardcode 1 for the player.
+0xA1,RELOC,                         // MOV EAX,DWORD PTR [$player_ent]
+0x8D,0x50,0x74,                     // LEA EDX,[EAX+74]
+0xC7,0x02,0x01,0x00,0x00,0x00,      // MOV DWORD PTR DS:[EDX], 1
+0x8D,0x90,RELOC,                    // LEA EDX,[EAX+$svrid]
+0xC7,0x02,0x01,0x00,0x00,0x00,      // MOV DWORD PTR DS:[EDX], 1
+// Add it to the entity lookup table, too.
+0x31,0xFF,                          // XOR EDI,EDI
+0x47,                               // INC EDI
+0x89,0x04,0xBD,RELOC,               // MOV DWORD PTR [$enttbl+EDI*4], EAX
 
-// set edit toolbar to absolute mode
+// Set edit toolbar to absolute mode.
 0x31,0xC0,                          // XOR EAX,EAX
 0xB0,0x01,                          // MOV AL, 1
 0xA2,RELOC,                         // MOV BYTE PTR [$edit_transform_abs], AL
 
 0xE8,RELOC,                         // CALL $setup_binds
 
-// add easter egg if they picked the tutorial
+// Add easter egg if they picked the tutorial.
 0x8B,0x0D,RELOC,                    // MOV ECX,DWORD PTR [$start_choice]
 0x83,0xF9,0x00,                     // CMP ECX,0
-0x75,0x05,                          // JNE SHORT out:
+0x75,0x05,                          // JNE SHORT out
 0xE8,RELOC,                         // CALL $setup_tutorial
 
 // out:
@@ -168,22 +173,33 @@ reloc reloc_enter_game[] = {
     { RELOC_END, 0 }
 };
 
+// ===== setup_binds =====
+// Calling convention: Custom
+//      No stack changes
+//      Invalidates EAX, EDX, EDI
+// Initializes command processor and sets up key bindings
 unsigned char code_setup_binds[] = {
+// Init the command structure (sets things like argument count).
 0x68,RELOC,                         // PUSH $commands
 0xE8,RELOC,                         // CALL $cmd_init
 0x83,0xC4,0x04,                     // ADD ESP, 4
+// Allocate room for a keybind profile.
 0x68,0x10,0x30,0x00,0x00,           // PUSH 3010
 0x6A,0x01,                          // PUSH 1
 0xE8,RELOC,                         // CALL $calloc
 0x83,0xC4,0x08,                     // ADD ESP,8
 0xA3,RELOC,                         // MOV DWORD PTR [$binds], EAX
+// Add the new profile to the top of the stack.
 0xE8,RELOC,                         // CALL $bind_push
 0xA1,RELOC,                         // MOV EAX, DWORD PTR [$binds]
+// 2 = flag for fallthrough to other profiles.
 0xC6,0x00,0x02,                     // MOV BYTE PTR [EAX], 2
+// Associate our handler callback.
 0xBA,RELOC,                         // MOV EDX, $cmd_handler
 0x89,0x90,0x08,0x30,0x00,0x00,      // MOV DWORD PTR [EAX+3008], EDX
 0xBF,RELOC,                         // MOV EDI, OFFSET $bind_list
 // loop:
+// Iterate through the bind list {name, callback} and add them.
 0x8B,0x07,                          // MOV EAX, DWORD PTR [EDI]
 0x85,0xC0,                          // TEST EAX, EAX
 0x74,0x13,                          // JZ SHORT done
@@ -211,6 +227,15 @@ reloc reloc_setup_binds[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_handler =====
+// Calling convention: cdecl
+// Parameters:
+//      command - pointer to a C string
+//      x - DWORD integer
+//      y - DWORD integer
+// Callback function that the command parser calls when a user types in a
+// slash command or presses a bound key. x and y contain the current mouse
+// coordinates, but we don't use them here.
 unsigned char code_cmd_handler[] = {
 0x55,                           // PUSH EBP
 0x89,0xE5,                      // MOV EBP, ESP
@@ -218,26 +243,37 @@ unsigned char code_cmd_handler[] = {
 0x53,                           // PUSH EBX
 0x56,                           // PUSH ESI
 0x57,                           // PUSH EDI
+// cmd_parse needs a big state struct, make some room on the stack...
 0x8D,0xBD,0xA0,0xFB,0xFF,0xFF,  // LEA EDI, [EBP-460]
+// ...and zero fill it (not doing this caused all sorts of weird issues).
 0xB9,0x18,0x01,0x00,0x00,       // MOV ECX, 118
 0x31,0xC0,                      // XOR EAX, EAX
 0xF3,0xAB,                      // REP STOSD [EDI]
+// Send the temp struct, as well as the command were were passed and a pointer
+// to our list of command tables (dept. of redundancy dept. approved) to
+// the parser itself
 0x8D,0x85,0xA0,0xFB,0xFF,0xFF,  // LEA EAX, [EBP-460]
 0x8B,0x7D,0x08,                 // MOV EDI, DWORD PTR [EBP+8]
 0x57,                           // PUSH EDI
 0x68,RELOC,                     // PUSH $commands
 0xE8,RELOC,                     // CALL $cmd_parse
 0x83,0xC4,0x08,                 // ADD ESP, 8
+// Any matches?
 0x85,0xC0,                      // TEST EAX,EAX
 0x74,0x1F,                      // JNZ SHORT out
 0x8B,0x78,0x08,                 // MOV EDI, DWORD PTR [EAX+8]
+// If this is a variable-only command we use an ID higher than CODE_END.
 0x81,0xFF,RELOC,                // CMP EDI, [$CODE_END]
 0x7D,0x14,                      // JGE SHORT out
+// If it's below it's associated with a callback. look it up.
 0x8B,0x14,0xBD,RELOC,           // MOV EDX, DWORD PTR [EDI*4+$command_funcs]
 0x31,0xC0,                      // XOR EAX, EAX
+// Make sure it's valid...
 0x85,0xD2,                      // TEST EDX, EDX
 0x74,0x07,                      // JZ SHORT out
+// ...and call it.
 0xFF,0xD2,                      // CALL EDX
+// Return 1 so the command stops here and doesn't filter to other handlers,
 0xB8,0x01,0x00,0x00,0x00,       // MOV EAX, 1
 // out:
 0x5F,                           // POP EDI
@@ -254,29 +290,47 @@ reloc reloc_cmd_handler[] = {
     { RELOC_END, 0 }
 };
 
+// ===== generic_mov =====
+// Calling convention: stdcall
+// Parameters:
+//      entity - pointer to entity structure
+//      name - pointer to C string
+// Looks up a sequencer move based on name, and causes the specified entity
+// to play that move next if it exists.
 unsigned char code_generic_mov[] = {
-0x83,0xEC,0x04,                     // 0000 SUB ESP,4
-0x57,                               // 0003 PUSH EDI
-0x8D,0x44,0xE4,0x04,                // 0004 LEA EAX,[ESP+04]
-0x8B,0x7C,0xE4,0x0C,                // 0008 MOV EDI,DWORD PTR SS:[ESP+0C]
-0x8B,0x57,0x28,                     // 000C MOV EDX,DWORD PTR DS:[EDI+28]
-0x8B,0x92,0x60,0x01,0x00,0x00,      // 000F MOV EDX,DWORD PTR DS:[EDX+160]
-0x50,                               // 0015 PUSH EAX
-0x52,                               // 0016 PUSH EDX
-0xFF,0x74,0xE4,0x18,                // 0017 PUSH DWORD PTR SS:[ESP+18]
-0xE8,RELOC,                         // 001B CALL $mov_by_name
-0x83,0xC4,0x0C,                     // 0020 ADD ESP,0C
-0x84,0xC0,                          // 0023 TEST AL,AL
-0x74,0x07,                          // 0025 JE SHORT 002E
-0x0F,0xB7,0x44,0xE4,0x04,           // 0027 MOVZX EAX,WORD PTR SS:[ESP+04]
-0xEB,0x02,                          // 002C JMP SHORT 0031
-0x31,0xC0,                          // 002E XOR EAX,EAX
-0x89,0x87,RELOC,                    // 0030 MOV DWORD PTR [EDI+$next_mov],EAX
-0x31,0xC0,                          // 0036 XOR EAX,EAX
-0x89,0x87,0x58,0x01,0x00,0x00,      // 0038 MOV DWORD PTR [EDI+158], EAX
-0x5F,                               // 003E POP EDI
-0x83,0xC4,0x04,                     // 003F ADD ESP,4
-0xC3,                               // 0042 RETN
+// We need a local to store the result in.
+0x83,0xEC,0x04,                     // SUB ESP,4
+0x89,0xE0,                          // MOV EAX,ESP
+0x57,                               // PUSH EDI
+
+// Dive into the entity to get its sequencer info.
+0x8B,0x7C,0xE4,0x0C,                // MOV EDI,DWORD PTR SS:[ESP+0C]
+0x8B,0x57,0x28,                     // MOV EDX,DWORD PTR DS:[EDI+28]
+0x8B,0x92,0x60,0x01,0x00,0x00,      // MOV EDX,DWORD PTR DS:[EDX+160]
+// mov_by_name takes name, sequencer info, and a pointer to store the result.
+0x50,                               // PUSH EAX
+0x52,                               // PUSH EDX
+0xFF,0x74,0xE4,0x18,                // PUSH DWORD PTR SS:[ESP+18]
+0xE8,RELOC,                         // CALL $mov_by_name
+0x83,0xC4,0x0C,                     // ADD ESP,0C
+// Did we find a move?
+0x84,0xC0,                          // TEST AL,AL
+0x74,0x07,                          // JE SHORT notfound
+// Yes. it's a 16-bit signed word, so put it in EAX.
+0x0F,0xB7,0x44,0xE4,0x04,           // MOVZX EAX,WORD PTR SS:[ESP+04]
+0xEB,0x02,                          // JMP SHORT go
+// notfound:
+0x31,0xC0,                          // XOR EAX,EAX
+// go:
+// The entity struct varies slightly between versions, hence the reloc.
+0x89,0x87,RELOC,                    // MOV DWORD PTR [EDI+$next_mov],EAX
+// Put a 0 in the sequencer timer. technically it's a float but all 0s works.
+0x31,0xC0,                          // XOR EAX,EAX
+0x89,0x87,0x58,0x01,0x00,0x00,      // MOV DWORD PTR [EDI+158], EAX
+
+0x5F,                               // POP EDI
+0x83,0xC4,0x04,                     // ADD ESP,4
+0xC2,0x08,0x00,                     // RETN 8
 };
 reloc reloc_generic_mov[] = {
     { COH_REL, COHFUNC_MOV_BY_NAME },
@@ -284,13 +338,19 @@ reloc reloc_generic_mov[] = {
     { RELOC_END, 0 }
 };
 
+// ===== get_target =====
+// Calling convention: Custom
+//      No stack changes, returns in EAX
+// Returns either the currently targeted entity, or the player if
+// nothing is targeted.
 unsigned char code_get_target[] = {
-0xA1,RELOC,                         // 0000 MOV EAX, DWORD PTR [$target]
-0x85,0xC0,                          // 0005 TEST EAX,EAX
-0x74,0x01,                          // 0007 JZ 000A
-0xC3,                               // 0009 RETN
-0xA1,RELOC,                         // 000A MOV EAX, DWORD PTR [$player_ent]
-0xC3,                               // 000F RETN
+0xA1,RELOC,                         // MOV EAX, DWORD PTR [$target]
+0x85,0xC0,                          // TEST EAX,EAX
+0x74,0x01,                          // JZ notarget
+0xC3,                               // RETN
+// notarget:
+0xA1,RELOC,                         // MOV EAX, DWORD PTR [$player_ent]
+0xC3,                               // RETN
 };
 reloc reloc_get_target[] = {
     { COH_ABS, COHVAR_TARGET },
@@ -298,7 +358,17 @@ reloc reloc_get_target[] = {
     { RELOC_END, 0 }
 };
 
+// ===== loadmap =====
+// Calling convention: stdcall, probably
+//      (OK... I haven't checked to make sure the COH calls don't clobber
+//      non-stdcall registers)
+// Parameters:
+//      pathname - pointer to C string
+// Common map loading routine. Clears out old map and any entities, loads
+// new map by name, populates spawn point array, and moves the player to
+// a random spawn.
 unsigned char code_loadmap[] = {
+// Is caller a dummy and passing a NULL?
 0x8B,0x44,0xE4,0x04,                // MOV EAX, [ESP+4]
 0x85,0xC0,                          // TEST EAX, EAX
 0x75,0x01,                          // JNZ ok
@@ -311,7 +381,7 @@ unsigned char code_loadmap[] = {
 0xE8,RELOC,                         // CALL $clear_ents
 0xE8,RELOC,                         // CALL $find_spawns
 0xE8,RELOC,                         // CALL $cmd_randomspawn
-0xC3,                               // RETN
+0xC2,0x04,0x00,                     // RETN 4
 };
 reloc reloc_loadmap[] = {
     { COH_REL, COHFUNC_MAP_CLEAR },
@@ -322,18 +392,21 @@ reloc reloc_loadmap[] = {
     { RELOC_END, 0 }
 };
 
+// ===== find_spawns =====
+// Calling convention: stdcall
+// Parses the currently loaded map to find all the player spawn points.
 unsigned char code_find_spawns[] = {
-// clear out old list if one exists
+// Clear out old list if one exists.
 0xA1,RELOC,                     // MOV EAX, DWORD PTR [$spawn_list]
 0x85,0xC0,                      // TEST EAX, EAX
 0x74,0x05,                      // JZ nolist
 0xE8,RELOC,                     // CALL $free_array
 // nolist:
-// set up our callback and walk the map
+// Set up our callback and walk the map.
 0xB9,RELOC,                     // MOV ECX, OFFSET $map_root
 0xB8,RELOC,                     // MOV EAX, OFFSET $map_traverser
 0xE8,RELOC,                     // CALL $walk_map
-// save array pointer
+// Save array pointer.
 0xA3,RELOC,                     // MOV DWORD PTR [$spawn_list], EAX
 0xC3,                           // RETN
 };
@@ -347,48 +420,26 @@ reloc reloc_find_spawns[] = {
     { RELOC_END, 0 }
 };
 
-unsigned char code_goto_spawn[] = {
-// get argument passed in on stack
-0x8B,0x44,0xE4,0x04,                // MOV EAX, DWORD PTR [ESP+4]
-0x8B,0x15,RELOC,                    // MOV EDX, DWORD PTR [$spawn_list]
-// make sure it's less than the size of the array
-0x8B,0x0A,                          // MOV ECX, DWORD PTR [EDX]
-0x39,0xC8,                          // CMP EAX, ECX
-0x72,0x03,                          // JB argok
-0xC2,0x04,0x00,                     // RETN 4
-// argok:
-// follow the array pointer itself, then go to the element we want
-0x8B,0x52,0x08,                     // MOV EDX, DWORD PTR [EDX+8]
-0x8B,0x14,0x82,                     // MOV EDX, DWORD PTR [EDX+EAX*4]
-// the location matrix starts at EDX+4, and we want the vector matrix[3]
-0x83,0xC2,0x28,                     // ADD EDX, 28
-// finally, send the player there
-0x8B,0x0D,RELOC,                    // MOV ECX, DWORD PTR [$player_ent]
-0xE8,RELOC,                         // CALL $ent_teleport
-0xC2,0x04,0x00,                     // RETN 4
-};
-reloc reloc_goto_spawn[] = {
-    { ICON_DATA, DATA_SPAWN_LIST },
-    { COH_ABS, COHVAR_PLAYER_ENT },
-    { COH_REL, COHFUNC_ENT_TELEPORT },
-    { RELOC_END, 0 }
-};
-
-// this is a callback that the game's map traverser calls repeatedly
+// ===== map_traverser =====
+// Calling convention: cdecl
+// Parameters:
+//      definfo - pointer a structure containing info about the map def
+// Callback function that the game's recursive map walker calls repeatedly.
+// Checks each map def it's passed to see if it's a spawn point.
 unsigned char code_map_traverser[] = {
 0x55,                           // PUSH EBP
 0x89,0xE5,                      // MOV EBP, ESP
-// we're passed a pointer to information about this def node
+// We're passed a pointer to information about this def node.
 0x8B,0x55,0x08,                 // MOV EDX, DWORD PTR [EBP+8]
-// get the node itself
+// Get the node itself.
 0x8B,0x12,                      // MOV EDX, DWORD PTR [EDX]
 
-// check flags to see if it has any properties
+// Check flags to see if it has any properties.
 0xF6,0x42,0x3A,0x02,            // TEST BYTE PTR [EDX+3A], 02
 0x74,0x20,                      // JZ SHORT nomatch
-// get pointer to the properties hash table
+// Get pointer to the properties hash table.
 0x8B,0xBA,0xE0,0x00,0x00,0x00,  // MOV EDI, DWORD PTR [EDX+E0]
-// see if it has a property called "SpawnLocation"
+// See if it has a property called "SpawnLocation".
 0x52,                           // PUSH EDX
 0x68,RELOC,                     // PUSH OFFSET $spawnlocation
 0xE8,RELOC,                     // CALL $hash_lookup
@@ -396,19 +447,19 @@ unsigned char code_map_traverser[] = {
 0x5A,                           // POP EDX
 0x85,0xC0,                      // TEST EAX, EAX
 0x74,0x07,                      // JZ SHORT nomatch
-// it does! return 3 to let the traverser know to add this to the results
+// It does! return 3 to let the traverser know to add this to the results
 0xB8,0x03,0x00,0x00,0x00,       // MOV EAX,3
 0xEB,0x0F,                      // JMP SHORT out
 
 // nomatch:
-// ok, found nothing, does this node's children have any properties?
+// Ok, found nothing, does this node's children have any properties?
 0xF6,0x42,0x3A,0x04,            // TEST BYTE PTR [EDX+3A], 04
 0x75,0x07,                      // JNZ SHORT childrenhaveprops
-// children have no properties, return 2 so the traverser skips them
+// Children have no properties, return 2 so the traverser skips them.
 0xB8,0x02,0x00,0x00,0x00,       // MOV EAX,2
 0xEB,0x02,                      // JMP SHORT out
 // continue:
-// return 0 so the traverser will keep going
+// Return 0 so the traverser will keep going.
 0x31,0xC0,                      // XOR EAX, EAX
 
 // out:
@@ -421,18 +472,66 @@ reloc reloc_map_traverser[] = {
     { RELOC_END, 0 }
 };
 
+// ===== goto_spawn =====
+// Calling convention: stdcall
+// Parameters:
+//      spawn - DWORD integer
+// Teleports the player to a given spawn point. The parameter is an index
+// into the spawn point array. Generally, nearby spawn points will be close
+// together in the array due to how the map traverser works.
+unsigned char code_goto_spawn[] = {
+// Get argument passed in on stack.
+0x8B,0x44,0xE4,0x04,                // MOV EAX, DWORD PTR [ESP+4]
+0x8B,0x15,RELOC,                    // MOV EDX, DWORD PTR [$spawn_list]
+// Make sure it's less than the size of the array.
+0x8B,0x0A,                          // MOV ECX, DWORD PTR [EDX]
+0x39,0xC8,                          // CMP EAX, ECX
+0x72,0x03,                          // JB argok
+0xC2,0x04,0x00,                     // RETN 4
+// argok:
+// Follow the array pointer itself, then go to the element we want.
+0x8B,0x52,0x08,                     // MOV EDX, DWORD PTR [EDX+8]
+0x8B,0x14,0x82,                     // MOV EDX, DWORD PTR [EDX+EAX*4]
+// The location matrix starts at EDX+4, and we want the vector matrix[3]
+0x83,0xC2,0x28,                     // ADD EDX, 28
+// Finally, send the player there.
+0x8B,0x0D,RELOC,                    // MOV ECX, DWORD PTR [$player_ent]
+0xE8,RELOC,                         // CALL $ent_teleport
+0xC2,0x04,0x00,                     // RETN 4
+};
+reloc reloc_goto_spawn[] = {
+    { ICON_DATA, DATA_SPAWN_LIST },
+    { COH_ABS, COHVAR_PLAYER_ENT },
+    { COH_REL, COHFUNC_ENT_TELEPORT },
+    { RELOC_END, 0 }
+};
+
+// ===== ent_set_facing =====
+// Calling convention: stdcall
+// Parameters:
+//      entity - pointer to entity struct
+//      facing - pointer to a float[3] vector
+// Make the given entity face in a particular direction. The facing vector
+// is specified in radians. If the entity is the player, also updates the
+// control structure so they don't immediately snap back.
 unsigned char code_ent_set_facing[] = {
 0x55,                           // PUSH EBP
 0x89,0xE5,                      // MOV EBP, ESP
 0x56,                           // PUSH ESI
 0x57,                           // PUSH EDI
+
+// Set up EAX to point at the entity's transform matrix...
 0x8B,0x45,0x08,                 // MOV EAX, DWORD PTR [EBP+8]
 0x8D,0x40,0x38,                 // LEA EAX, [EAX+38]
+// ...and ESI to our vector parameter.
 0x8B,0x75,0x0C,                 // MOV ESI, DWORD PTR [EBP+C]
+// Call a convenient function to update the matrix based on the vector.
 0xE8,RELOC,                     // CALL $matrix_from_pyr
+// Check and see if this is the player.
 0x8B,0x45,0x08,                 // MOV EAX, DWORD PTR [EBP+8]
 0x3B,0x05,RELOC,                // CMP EAX, DWORD PTR [$player_ent]
 0x75,0x0F,                      // JNE SHORT out
+// Yes it is, so copy the passed-in vector to the control state too.
 0xBF,RELOC,                     // MOV EDI, OFFSET $controls
 0x8D,0x7F,0x04,                 // LEA EDI, [EDI+4]
 0xB9,0x03,0x00,0x00,0x00,       // MOV ECX, 3
@@ -441,7 +540,7 @@ unsigned char code_ent_set_facing[] = {
 0x5F,                           // POP EDI
 0x5E,                           // POP ESI
 0xC9,                           // LEAVE
-0xC3,                           // RETN
+0xC2,0x08,0x00,                 // RETN 8
 };
 reloc reloc_ent_set_facing[] = {
     { COH_REL, COHFUNC_MATRIX_FROM_PYR },
@@ -451,13 +550,17 @@ reloc reloc_ent_set_facing[] = {
     { RELOC_END, 0 }
 };
 
+// ===== setup_tutorial =====
+// Calling convention: Custom
+//      No stack changes
+//      Clobbers EAX, ECD, EDX, EDI
+// Sets up something special in the tutorial...
 unsigned char code_setup_tutorial[] = {
 0x55,                           // PUSH EBP
 0x89,0xE5,                      // MOV EBP, ESP
 0x68,RELOC,                     // PUSH OFFSET $coyote_name
 0x6A,0x01,                      // PUSH 1
 0xE8,RELOC,                     // CALL $create_ent
-0x83,0xC4,0x08,                 // ADD ESP, 8
 0x50,                           // PUSH EAX
 0x50,                           // PUSH EAX
 0x83,0x88,RELOC,0x08,           // OR DWORD PTR [EAX+$ent_flags], 8
@@ -468,9 +571,7 @@ unsigned char code_setup_tutorial[] = {
 0x68,RELOC,                     // PUSH OFFSET $coyote_rot
 0x50,                           // PUSH EAX
 0xE8,RELOC,                     // CALL $ent_set_facing
-//0x83,0xC4,0x08,                 // ADD ESP, 8
-//0x81,0xEC,0x94,0x00,0x00,0x00,  // SUB ESP, 94
-0x81,0xEC,0x8C,0x00,0x00,0x00,  // SUB ESP, 8C (94-8)
+0x81,0xEC,0x94,0x00,0x00,0x00,  // SUB ESP, 94
 0x89,0xE7,                      // MOV EDI, ESP
 0xB9,0x25,0x00,0x00,0x00,       // MOV ECX, 25
 0x31,0xC0,                      // XOR EAX, EAX
@@ -490,7 +591,7 @@ unsigned char code_setup_tutorial[] = {
 0xE8,RELOC,                     // CALL $ent_set_costume_demo
 0x83,0xC4,0x04,                 // ADD ESP, 4
 0x68,RELOC,                     // PUSH OFFSET $coyote_mov
-0xFF,0x75,0xFC,                 // PUSH DWORD PTR [EBI-4]
+0xFF,0x75,0xFC,                 // PUSH DWORD PTR [EDI-4]
 0xE8,RELOC,                     // CALL $generic_mov
 
 0xC9,                           // LEAVE
@@ -512,36 +613,57 @@ reloc reloc_setup_tutorial[] = {
     { RELOC_END, 0 }
 };
 
-// Args (cdecl order): Ent type, Name
+// ===== create_ent =====
+// Calling convention: stdcall
+// Parameters:
+//      type - integer
+//      name - pointer to C string
+// Creates an entity of [type] (1 = NPC, 2 = Player, 4 = Critter, 8 = Door)
+// with the specified name. Creates player and character structures if
+// applicable. Returns a pointer to the entity.
 unsigned char code_create_ent[] = {
 0x55,                           // PUSH EBP
 0x89,0xE5,                      // MOV EBP, ESP
 0x53,                           // PUSH EBX
 0x57,                           // PUSH EDI
+// Allocate the new entity.
 0xE8,RELOC,                     // CALL $ent_new
+// Get a new ID for it (this will be the "server" ID).
 0xBA,RELOC,                     // MOV EDX, OFFSET $num_ents
 0x8B,0x1A,                      // MOV EBX, DWORD PTR [EDX]
+// Put it in the game's ID lookup table.
 0x89,0x04,0x9D,RELOC,           // MOV DWORD PTR [$enttbl+EBX*4], EAX
+// Increment the ID counter.
 0xFF,0x02,                      // INC DWORD PTR [EDX]
+// Set the entity's "server" ID.
 0x89,0x98,RELOC,                // MOV DWORD PTR [EAX+$svrid], EBX
+// Make it look like a demoplay entity so that it doesn't try to predict the
+// motion and snap it back to 0,0,0.
 0x89,0x98,RELOC,                // MOV DWORD PTR [EAX+$demo], EBX
+// See what ID the client assigned this enity, and update its info table
+// with the type.
 0x8B,0x4D,0x08,                 // MOV ECX, DWORD PTR [EBP+08]
-0x8B,0x58,0x04,                 // MOV EBx, DWORD PTR [EAX+04]
+0x8B,0x58,0x04,                 // MOV EBX, DWORD PTR [EAX+04]
 0x89,0x0C,0xDD,RELOC,           // MOV DWORD PTR [ent_types+EBX*8], ECX
+// Allocate and initialize all the usual fields.
 0x89,0xC7,                      // MOV EDI, EAX
 0x50,                           // PUSH EAX
 0xE8,RELOC,                     // CALL $ent_initplayer
 0x83,0xC4,0x04,                 // ADD ESP, 4
+// See if this is a player or a critter.
 0x8B,0x4D,0x08,                 // MOV ECX, DWORD PTR [EBP+08]
 0x83,0xF9,0x02,                 // CMP ECX,2
 0x72,0x40,                      // JB SHORT nonplayer
 0x83,0xF9,0x02,                 // CMP ECX,4
 0x77,0x3B,                      // JA short nonplayer
+// If so, its character structure will have been populated by initplayer.
 0x8B,0x97,RELOC,                // MOV EDX, DWORD PTR [EDI+$char_offset]
 0x57,                           // PUSH EDI     ; for init_char call later
 0x52,                           // PUSH EDX
+// Set the character's parent pointer back to us.
 0x89,0x7A,0x64,                 // MOV DWORD PTR [EDX+64], EDI
 0x57,                           // PUSH EDI
+// Get a (dummy) origin and class.
 0xBF,RELOC,                     // MOV EDI, OFFSET $origin_tbl
 0x68,RELOC,                     // PUSH OFFSET $default_origin
 0xE8,RELOC,                     // CALL $get_origin
@@ -551,22 +673,25 @@ unsigned char code_create_ent[] = {
 0x68,RELOC,                     // PUSH OFFSET $default_class
 0xE8,RELOC,                     // CALL $get_class
 0x83,0xC4,0x04,                 // ADD ESP, 4
+// Finish the rest of the initalization using those.
 0x59,                           // POP ECX
 0x5F,                           // POP EDI
 0xE8,RELOC,                     // CALL $ent_initchar
 0x83,0xC4,0x08,                 // ADD ESP, 8
 // nonplayer:
+// Set the name if the caller wasn't a dummy and passed a NULL.
 0x8B,0x07,                      // MOV EAX, DWORD PTR [EDI]
 0x8B,0x4D,0x0C,                 // MOV ECX, DWORD PTR [EBP+C]
 0x85,0xC9,                      // TEST ECX, ECX
 0x74,0x05,                      // JZ out
 0xE8,RELOC,                     // CALL $strcpy
 // out:
+// Return pointer to the new entity.
 0x89,0xF8,                      // MOV EAX, EDI
 0x5F,                           // POP EDI
 0x5B,                           // POP EBX
 0xC9,                           // LEAVE
-0xC3,                           // RETN
+0xC2,0x08,0x00                  // RETN 8
 };
 reloc reloc_create_ent[] = {
     { COH_REL, COHFUNC_ENT_NEW },
@@ -588,29 +713,50 @@ reloc reloc_create_ent[] = {
     { RELOC_END, 0 }
 };
 
+// ===== create_ent =====
+// Calling convention: Custom
+//      No stack changes
+//      Clobbers EAX, EBX, ECX, EDX, EDI
+// Makes the player fly like an eagle! Or something relatively close.
 unsigned char code_cmd_fly[] = {
-0x8B,0x3D,RELOC,                    // 0000 MOV EDI,DWORD PTR [$player_ent]
-0x8B,0x7F,0x2C,                     // 0006 MOV EDI,DWORD PTR DS:[EDI+2C]
-0x8D,0xBF,0xA8,0x00,0x00,0x00,      // 0009 LEA EDI,[EDI+0A8]
-0xBA,RELOC,                         // 000F MOV EDX,OFFSET $controls_from_server
-0xB1,0x01,                          // 0014 MOV CL,1
-0xB3,0x08,                          // 0016 MOV BL,8
-0x30,0x4F,0x3C,                     // 0018 XOR BYTE PTR DS:[EDI+3C],CL
-0x84,0x4F,0x3C,                     // 001B TEST BYTE PTR DS:[EDI+3C],CL
-0x74,0x0F,                          // 001E JE SHORT 002F
-0x08,0x5A,0x3C,                     // 0020 OR BYTE PTR DS:[EDX+3C],BL
-0xB8,0x00,0x00,0x20,0x41,           // 0023 MOV EAX,41200000
-0xBB,0x00,0x00,0xA0,0x40,           // 0028 MOV EBX,40A00000
-0xEB,0x0C,                          // 002D JMP SHORT 003B
-0xF6,0xD3,                          // 002F NOT BL
-0x20,0x5A,0x3C,                     // 0031 AND BYTE PTR SS:[EDX+3C],BL
-0xB8,0x00,0x00,0x80,0x3F,           // 0034 MOV EAX,3F800000
-0x89,0xC3,                          // 0039 MOV EBX,EAX
-0x89,0x5F,0x0C,                     // 003B MOV DWORD PTR DS:[EDI+0C],EBX
-0x89,0x47,0x28,                     // 003E MOV DWORD PTR DS:[EDI+28],EAX
-0x89,0x47,0x2C,                     // 0041 MOV DWORD PTR DS:[EDI+2C],EAX
-0x89,0x5F,0x38,                     // 0044 MOV DWORD PTR DS:[EDI+38],EBX
-0xC3,                               // 0047 RETN
+// Get a pointer to a copy of the physics info that entities have some some
+// unknown reason. Put it in EDI for the duration.
+0x8B,0x3D,RELOC,                    // MOV EDI,DWORD PTR [$player_ent]
+0x8B,0x7F,0x2C,                     // MOV EDI,DWORD PTR DS:[EDI+2C]
+0x8D,0xBF,0xA8,0x00,0x00,0x00,      // LEA EDI,[EDI+0A8]
+// Also need the client's idea of what the "server" is telling it that its
+// controls should look like.
+0xBA,RELOC,                         // MOV EDX,OFFSET $controls_from_server
+0xB1,0x01,                          // MOV CL,1
+0xB3,0x08,                          // MOV BL,8
+// Flight is bit 0 in the entity's physics flags. Flip it.
+0x30,0x4F,0x3C,                     // XOR BYTE PTR DS:[EDI+3C],CL
+// See if we just turned it on or off.
+0x84,0x4F,0x3C,                     // TEST BYTE PTR DS:[EDI+3C],CL
+0x74,0x0F,                          // JZ SHORT flyoff
+// We just turned it on, so turn it on in the control state, too.
+0x08,0x5A,0x3C,                     // OR BYTE PTR DS:[EDX+3C],BL
+// Increase traction and friction in the air to 10.0. Increase max speed in
+// the air to 5.0. Yes, these are floats represented directly in hex so
+// I can copy them without using FPU instructions.
+0xB8,0x00,0x00,0x20,0x41,           // MOV EAX,41200000
+0xBB,0x00,0x00,0xA0,0x40,           // MOV EBX,40A00000
+0xEB,0x0C,                          // JMP SHORT save
+// flyoff:
+// Flight is now off, so clear the bit from the control state to match.
+0xF6,0xD3,                          // NOT BL
+0x20,0x5A,0x3C,                     // AND BYTE PTR SS:[EDX+3C],BL
+// And set all the physics parameters back to 1.0.
+0xB8,0x00,0x00,0x80,0x3F,           // MOV EAX,3F800000
+0x89,0xC3,                          // MOV EBX,EAX
+// save:
+// Save the values set up above. In order, max total speed,
+// traction (air), friction (air), max speed (air).
+0x89,0x5F,0x0C,                     // MOV DWORD PTR DS:[EDI+0C],EBX
+0x89,0x47,0x28,                     // MOV DWORD PTR DS:[EDI+28],EAX
+0x89,0x47,0x2C,                     // MOV DWORD PTR DS:[EDI+2C],EAX
+0x89,0x5F,0x38,                     // MOV DWORD PTR DS:[EDI+38],EBX
+0xC3,                               // RETN
 };
 reloc reloc_cmd_fly[] = {
     { COH_ABS, COHVAR_PLAYER_ENT },
@@ -618,14 +764,16 @@ reloc reloc_cmd_fly[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_torch =====
+// Calling convention: stdcall
+// Just a wrapper around generic_mov to be called as the command handler.
 unsigned char code_cmd_torch[] = {
-0x8B,0x15,RELOC,                    // 0000 MOV EDX,DWORD PTR [$player_ent]
-0xB8,RELOC,                         // 0006 MOV EAX, OFFSET $holdtorch
-0x50,                               // 000B PUSH EAX
-0x52,                               // 000C PUSH EDX
-0xE8,RELOC,                         // 000D CALL $generic_mov
-0x83,0xC4,0x08,                     // 0012 ADD ESP,8
-0xC3,                               // 0015 RETN
+0x8B,0x15,RELOC,                    // MOV EDX,DWORD PTR [$player_ent]
+0xB8,RELOC,                         // MOV EAX, OFFSET $holdtorch
+0x50,                               // PUSH EAX
+0x52,                               // PUSH EDX
+0xE8,RELOC,                         // CALL $generic_mov
+0xC3,                               // RETN
 };
 reloc reloc_cmd_torch[] = {
     { COH_ABS, COHVAR_PLAYER_ENT },
@@ -634,18 +782,26 @@ reloc reloc_cmd_torch[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_nocoll =====
+// Calling convention: stdcall
+// Handler for the enhanced 'noclip' command.
 unsigned char code_cmd_nocoll[] = {
-0xBA,RELOC,                         // 0000 MOV EDX, OFFSET $nocoll
-0x83,0x32,0x01,                     // 0005 XOR DWORD PTR [EDX], 1
-0x74,0x07,                          // 0008 JZ 0017
-0xB8,RELOC,                         // 000A MOV EAX, $noclip_on
-0xEB,0x05,                          // 000F JMP 001C
-0xB8,RELOC,                         // 0011 MOV EAX, $noclip_off
-0x6A,0xFF,                          // 0016 PUSH -1
-0x50,                               // 0018 PUSH EAX
-0xE8,RELOC,                         // 0019 CALL annoying_alert
-0x83,0xC4,0x08,                     // 001E ADD ESP,8
-0xC3,                               // 0021 RETN
+// Flip the nocoll state
+0xBA,RELOC,                         // MOV EDX, OFFSET $nocoll
+0x83,0x32,0x01,                     // XOR DWORD PTR [EDX], 1
+0x74,0x07,                          // JZ offnow
+0xB8,RELOC,                         // MOV EAX, $noclip_on
+0xEB,0x05,                          // JMP display
+// offnow:
+0xB8,RELOC,                         // MOV EAX, $noclip_off
+// display:
+// Show the message. 0x6A sign extends, so pushing -1 is a shortcut for
+// pushing 0xFFFFFFFF (white with full alpha).
+0x6A,0xFF,                          // PUSH -1
+0x50,                               // PUSH EAX
+0xE8,RELOC,                         // CALL annoying_alert
+0x83,0xC4,0x08,                     // ADD ESP,8
+0xC3,                               // RETN
 };
 reloc reloc_cmd_nocoll[] = {
     { COH_ABS, COHVAR_NOCOLL },
@@ -655,44 +811,60 @@ reloc reloc_cmd_nocoll[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_seeall =====
+// Calling convention: stdcall
+// Very simple handler that toggles the /see_everything bit.
 unsigned char code_cmd_seeall[] = {
-0xBA,RELOC,                         // 0000 MOV EDX, OFFSET $seeall
-0x83,0x32,0x01,                     // 0005 XOR DWORD PTR [EDX], 1
-0xC3,                               // 0008 RETN
+0xBA,RELOC,                         // MOV EDX, OFFSET $seeall
+0x83,0x32,0x01,                     // XOR DWORD PTR [EDX], 1
+0xC3,                               // RETN
 };
 reloc reloc_cmd_seeall[] = {
     { COH_ABS, COHVAR_SEEALL },
     { RELOC_END, 0 }
 };
 
+// ===== cmd_coords =====
+// Calling convention: stdcall
+// Very simple handler that toggles the coordinate display status.
 unsigned char code_cmd_coords[] = {
-0xBA,RELOC,                         // 0000 MOV EDX, OFFSET $draw_edit_bar
-0x83,0x32,0x01,                     // 0005 XOR DWORD PTR [EDX], 1
-0xC3,                               // 0008 RETN
+0xBA,RELOC,                         // MOV EDX, OFFSET $draw_edit_bar
+0x83,0x32,0x01,                     // XOR DWORD PTR [EDX], 1
+0xC3,                               // RETN
 };
 reloc reloc_cmd_coords[] = {
     { ICON_DATA, DATA_SHOW_TOOLBAR },
     { RELOC_END, 0 }
 };
 
+// ===== cmd_detach =====
+// Calling convention: stdcall
+// Wrapper around the normal COH /detach_camera handler that also provides
+// on-screen feedback.
 unsigned char code_cmd_detach[] = {
-0x8B,0x15,RELOC,                    // 0000 MOV EDX, DWORD PTR [$is_detached]
-0x83,0xF2,0x01,                     // 0006 XOR EDX, 1
-0x52,                               // 0009 PUSH EDX
-0x68,RELOC,                         // 000A PUSH OFFSET $camera
-0x52,                               // 000F PUSH EDX
-0xE8,RELOC,                         // 0010 CALL $detach_camera
-0x83,0xC4,0x08,                     // 0015 ADD ESP, 8
-0x5A,                               // 0018 POP EDX
-0x6A,0xFF,                          // 0019 PUSH -1
-0x85,0xD2,                          // 001B TEST EDX,EDX
-0x74,0x07,                          // 001D JZ SHORT 0026
-0x68,RELOC,                         // 001F PUSH OFFSET $cameradetach
-0xEB,0x05,                          // 0024 JMP SHORT 002B
-0x68,RELOC,                         // 0026 PUSH OFFSET $cameraattach
-0xE8,RELOC,                         // 002B CALL $annoying_alert
-0x83,0xC4,0x08,                     // 0030 ADD ESP, 8
-0xC3,                               // 0033 RETN
+// Get current detached state and invert it.
+0x8B,0x15,RELOC,                    // MOV EDX, DWORD PTR [$is_detached]
+0x83,0xF2,0x01,                     // XOR EDX, 1
+0x52,                               // PUSH EDX
+// Call detach_camera with the standard camera and new state.
+0x68,RELOC,                         // PUSH OFFSET $camera
+0x52,                               // PUSH EDX
+0xE8,RELOC,                         // CALL $detach_camera
+0x83,0xC4,0x08,                     // ADD ESP, 8
+0x5A,                               // POP EDX
+// Push color (0xFFFFFFFF) for later call to annoying_alert.
+0x6A,0xFF,                          // PUSH -1
+// Push appropriate message to display.
+0x85,0xD2,                          // TEST EDX,EDX
+0x74,0x07,                          // JZ SHORT reattached
+0x68,RELOC,                         // PUSH OFFSET $cameradetach
+0xEB,0x05,                          // JMP SHORT display
+// reattached:
+0x68,RELOC,                         // PUSH OFFSET $cameraattach
+// display:
+0xE8,RELOC,                         // CALL $annoying_alert
+0x83,0xC4,0x08,                     // ADD ESP, 8
+0xC3,                               // RETN
 };
 reloc reloc_cmd_detach[] = {
     { COH_ABS, COHVAR_CAM_IS_DETACHED },
@@ -704,10 +876,12 @@ reloc reloc_cmd_detach[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_loadmap =====
+// Calling convention: stdcall
+// Simple wrapper around loadmap that uses the static command buffer.
 unsigned char code_cmd_loadmap[] = {
 0x68,RELOC,                         // PUSH $param1
 0xE8,RELOC,                         // CALL $loadmap
-0x83,0xC4,0x04,                     // ADD ESP, 4
 0xC3,                               // RETN
 };
 reloc reloc_cmd_loadmap[] = {
@@ -716,25 +890,35 @@ reloc reloc_cmd_loadmap[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_loadmap_prompt =====
+// Calling convention: stdcall
+// Displays a dialog box asking for a map to load.
 unsigned char code_cmd_loadmap_prompt[] = {
-0x6A,0x00,                          // 0000 PUSH 00
-0x68,0xFF,0x00,0x00,0x00,           // 0002 PUSH 00FF
-0x6A,0x00,                          // 0007 PUSH 00
-0x6A,0x00,                          // 0009 PUSH 00
-0x6A,0x00,                          // 000B PUSH 00
-0x6A,0x00,                          // 000D PUSH 00
-0x6A,0x00,                          // 0009 PUSH 00
-0x6A,0x00,                          // 0011 PUSH 00
-0x6A,0x00,                          // 0013 PUSH 00
-0x68,RELOC,                         // 0015 PUSH OFFSET $loadmap_cb
-0x6A,0x00,                          // 001A PUSH 00
-0x68,RELOC,                         // 001C PUSH OFFSET $mapfile
-0x6A,0xFF,                          // 0021 PUSH -1
-0x6A,0xFF,                          // 0023 PUSH -1
-0x6A,0x07,                          // 0025 PUSH 7
-0xE8,RELOC,                         // 0027 CALL $dialog
-0x83,0xC4,0x3C,                     // 002C ADD ESP, 3C
-0xC3,                               // 002F RETN
+// The COH dialog routine support text input but takes a lot of other
+// parameters we don't care about.
+0x6A,0x00,                          // PUSH 00
+// Max text length is 255
+0x68,0xFF,0x00,0x00,0x00,           // PUSH 00FF
+0x6A,0x00,                          // PUSH 00
+0x6A,0x00,                          // PUSH 00
+0x6A,0x00,                          // PUSH 00
+0x6A,0x00,                          // PUSH 00
+0x6A,0x00,                          // PUSH 00
+0x6A,0x00,                          // PUSH 00
+0x6A,0x00,                          // PUSH 00
+// Callback function for 'ok'.
+0x68,RELOC,                         // PUSH OFFSET $loadmap_cb
+0x6A,0x00,                          // PUSH 00
+// Text for the dialog box.
+0x68,RELOC,                         // PUSH OFFSET $mapfile
+// These are screen coordinates, -1 means we don't care (and it centers it).
+0x6A,0xFF,                          // PUSH -1
+0x6A,0xFF,                          // PUSH -1
+// Type 7 is a text input box.
+0x6A,0x07,                          // PUSH 7
+0xE8,RELOC,                         // CALL $dialog
+0x83,0xC4,0x3C,                     // ADD ESP, 3C
+0xC3,                               // RETN
 };
 reloc reloc_cmd_loadmap_prompt[] = {
     { ICON_CODE_ABS, CODE_LOADMAP_CB },
@@ -743,12 +927,15 @@ reloc reloc_cmd_loadmap_prompt[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_mov =====
+// Calling convention: stdcall
+// /mov handler. Just wraps generic_mov using the target as determined by
+// get_target.
 unsigned char code_cmd_mov[] = {
 0xE8,RELOC,                     // CALL $get_target
 0x68,RELOC,                     // PUSH $param1
 0x50,                           // PUSH EAX
 0xE8,RELOC,                     // CALL $generic_mov
-0x83,0xC4,0x08,                 // ADD ESP, 8
 0xC3,                           // RETN
 };
 reloc reloc_cmd_mov[] = {
@@ -758,19 +945,22 @@ reloc reloc_cmd_mov[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_prevspawn =====
+// Calling convention: stdcall
+// Handler to cycle through spawn points.
 unsigned char code_cmd_prevspawn[] = {
-// get size member from array struct
+// Get size member from array struct.
 0xA1,RELOC,                     // MOV EAX, DWORD PTR [$spawn_list]
 0x8B,0x00,                      // MOV EAX, DWORD PTR [EAX]
-// get last spawn
+// Get last spawn.
 0x8B,0x0D,RELOC,                // MOV ECX, DWORD PTR [$last_spawn]
 0x49,                           // DEC ECX
-// see if it's still in range using unsigned math so that a rollover below
-// 0 will be "above" the range. this is done so that the logic can work
+// See if it's still in range using unsigned math so that a rollover below
+// 0 will be "above" the range. This is done so that the logic can work
 // the same as nextspawn.
 0x39,0xC1,                      // CMP ECX, EAX
 0x72,0x03,                      // JB SHORT inrange
-// went below zero, reset it to size - 1
+// Went below zero, reset it to size - 1
 0x89,0xC1,                      // MOV ECX, EAX
 0x49,                           // DEC ECX
 // inrange:
@@ -787,17 +977,20 @@ reloc reloc_cmd_prevspawn[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_nextspawn =====
+// Calling convention: stdcall
+// Handler to cycle through spawn points.
 unsigned char code_cmd_nextspawn[] = {
-// get size member from array struct
+// Get size member from array struct.
 0xA1,RELOC,                     // MOV EAX, DWORD PTR [$spawn_list]
 0x8B,0x00,                      // MOV EAX, DWORD PTR [EAX]
-// get last spawn
+// Get last spawn.
 0x8B,0x0D,RELOC,                // MOV ECX, DWORD PTR [$last_spawn]
 0x41,                           // INC ECX
-// see if it's still in range
+// See if it's still in range.
 0x39,0xC1,                      // CMP ECX, EAX
 0x72,0x02,                      // JB SHORT inrange
-// too high, go back to 0
+// Too high, go back to 0.
 0x31,0xC9,                      // XOR ECX, ECX
 // inrange:
 0x89,0x0D,RELOC,                // MOV DWORD PTR [$last_spawn], ECX
@@ -813,20 +1006,23 @@ reloc reloc_cmd_nextspawn[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_randomspawn =====
+// Calling convention: stdcall
+// Handler to jump to a random spawn point. Also called by loadmap.
 unsigned char code_cmd_randomspawn[] = {
 0x57,                           // PUSH EDI
-// get size member from array struct
+// Get size member from array struct.
 0x8B,0x3D,RELOC,                // MOV EDI,DWORD PTR [$spawn_list]
 0x8B,0x0F,                      // MOV ECX,DWORD PTR [EDI]
-// make sure we found some, to avoid dividing by zero or worse
+// Make sure we found some, to avoid dividing by zero or worse.
 0x85,0xC9,                      // TEST ECX,ECX
 0x74,0x15,                      // JZ SHORT out
 0x31,0xD2,                      // XOR EDX,EDX
 0xE8,RELOC,                     // CALL $rand
 0xF7,0x37,                      // DIV DWORD PTR [EDI]
-// save which one we picked so that prev/next work right
+// Save which one we picked so that prev/next work right.
 0x89,0x15,RELOC,                // MOV DWORD PTR [$last_spawn], EDX
-// send the player there
+// Send the player there.
 0x52,                           // PUSH EDX
 0xE8,RELOC,                     // CALL $goto_spawn
 // out:
@@ -842,11 +1038,14 @@ reloc reloc_cmd_randomspawn[] = {
 };
 
 
+// ===== loadmap_cb =====
+// Calling convention: cdecl
+// Callback used by dialog box. Just gets the user input and hands it off
+// to loadmap.
 unsigned char code_loadmap_cb[] = {
 0xE8,RELOC,                         // CALL $dialog_get_text
 0x50,                               // PUSH EAX
 0xE8,RELOC,                         // CALL $loadmap
-0x83,0xC4,0x04,                     // ADD ESP, 4
 0xC3,                               // RETN
 };
 reloc reloc_loadmap_cb[] = {
@@ -855,27 +1054,38 @@ reloc reloc_loadmap_cb[] = {
     { RELOC_END, 0 }
 };
 
+// ===== pos_update_cb =====
+// Calling convention: Custom
+//      No stack changes (accesses parent function's stack)
+//      Clobbers EAX, ECX, EDX, ESI
+// Hook called from the edit toolbar's "something changed" code path.
 unsigned char code_pos_update_cb[] = {
-0x8D,0x74,0x24,0x20,            // 0000 LEA ESI, [ESP+20]
+0x8D,0x74,0x24,0x20,            // LEA ESI, [ESP+20]
 0xE8,RELOC,                     // CALL $get_target
+// See if this is an absoulte or a relative change.
 0x80,0x3D,RELOC,0x00,           // CMP BYTE PTR [$edit_transform_abs], 0
-0x74, 0x15,                     // JE reltrans
+0x74, 0x12,                     // JE reltrans
 0x50,                           // PUSH EAX
+// Absolute transform, so push the entity and vector to face.
 0x56,                           // PUSH ESI
 0x50,                           // PUSH EAX
 0xE8,RELOC,                     // CALL $set_ent_facing
-0x83,0xC4,0x08,                 // ADD ESP, 8
+// Use the XYZ part as new coordinates for the entity.
 0x59,                           // POP ECX
 0x8D,0x56,0x18,                 // LEA EDX, [ESI+18]
 0xE8,RELOC,                     // CALL $ent_teleport
 0xC3,                           // RETN
 
 // reltrans:
+// Relative, so we'll need some stack space for a temporary vector.
 0x83,0xEC,0x10,                 // SUB ESP, 10
 0x89,0x44,0xE4,0x0C,            // MOV DWORD PTR [ESP+0C], EAX
+// First convert the player's matrix into a PYR trio. This suffers from some
+// bad gimbal lock, but is the best we can do with the interface available.
 0x8D,0x48,0x38,                 // LEA ECX, [EAX+38]
 0x89,0xE2,                      // MOV EDX, ESP
 0xE8,RELOC,                     // CALL $matrix_to_pyr
+// Now add in the relative values entered.
 0xD9,0x04,0xE4,                 // FLD DWORD PTR [ESP]
 0xD8,0x06,                      // FADD DWORD PTR [ESI]
 0xD9,0x1C,0xE4,                 // FSTP DWORD PTR [ESP]
@@ -885,11 +1095,13 @@ unsigned char code_pos_update_cb[] = {
 0xD9,0x44,0xE4,0x08,            // FLD DWORD PTR [ESP+8]
 0xD8,0x46,0x08,                 // FADD DWORD PTR [ESI+8]
 0xD9,0x5C,0xE4,0x08,            // FSTP DWORD PTR [ESP+8]
+// Make the entity face the resulting vector.
 0x8B,0x44,0xE4,0x0C,            // MOV EAX, DWORD PTR [ESP+0C]
 0x54,                           // PUSH ESP
 0x50,                           // PUSH EAX
 0xE8,RELOC,                     // CALL $set_ent_facing
-0x83,0xC4,0x08,                 // ADD ESP, 8
+// Now add the player's position with the entered coordinates, storing the
+// result in our temporary space.
 0x8B,0x4C,0xE4,0x0C,            // MOV ECX, DWORD PTR [ESP+0C]
 0xD9,0x41,0x5C,                 // FLD DWORD PTR [ECX+5C]
 0xD8,0x46,0x18,                 // FADD DWORD PTR [ESI+18]
@@ -900,6 +1112,7 @@ unsigned char code_pos_update_cb[] = {
 0xD9,0x41,0x64,                 // FLD DWORD PTR [ECX+64]
 0xD8,0x46,0x20,                 // FADD DWORD PTR [ESI+20]
 0xD9,0x5C,0xE4,0x08,            // FSTP DWORD PTR [ESP+8]
+// Send the entity to the resulting coordinates.
 0x89,0xE2,                      // MOV EDX, ESP
 0xE8,RELOC,                     // CALL $ent_teleport
 0x83,0xC4,0x10,                 // ADD ESP, 10
@@ -925,8 +1138,8 @@ codedef icon_code[] = {
     CODE(GET_TARGET, code_get_target, reloc_get_target),
     CODE(LOADMAP, code_loadmap, reloc_loadmap),
     CODE(FIND_SPAWNS, code_find_spawns, reloc_find_spawns),
-    CODE(GOTO_SPAWN, code_goto_spawn, reloc_goto_spawn),
     CODE(MAP_TRAVERSER, code_map_traverser, reloc_map_traverser),
+    CODE(GOTO_SPAWN, code_goto_spawn, reloc_goto_spawn),
     CODE(ENT_SET_FACING, code_ent_set_facing, reloc_ent_set_facing),
     CODE(SETUP_TUTORIAL, code_setup_tutorial, reloc_setup_tutorial),
     CODE(CREATE_ENT, code_create_ent, reloc_create_ent),
@@ -997,8 +1210,8 @@ void WriteCode() {
     // Write code
     c = icon_code;
     while (c && c->sz) {
-	PutData(CodeAddr(c->id), c->code, c->sz);
-	++c;
+        PutData(CodeAddr(c->id), c->code, c->sz);
+        ++c;
     }
 }
 
