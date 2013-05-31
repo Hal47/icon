@@ -74,6 +74,12 @@ static stringmap icon_strs[] = {
     STR(CMD_NEXTSPAWN_HELP, "Jump to the next spawn point."),
     STR(CMD_RANDOMSPAWN, "random_spawn"),
     STR(CMD_RANDOMSPAWN_HELP, "Jump to a random spawn point."),
+    STR(CMD_SPAWNNPC, "spawn_npc"),
+    STR(CMD_SPAWNNPC_HELP, "Creates an NPC at your current location. The fist parameter is the costume, and the second is the name of the NPC."),
+    STR(CMD_MOVENPC, "move_npc"),
+    STR(CMD_MOVENPC_HELP, "Moves the targeted NPC to your current location."),
+    STR(CMD_DELETENPC, "delete_npc"),
+    STR(CMD_DELETENPC_HELP, "Deletes the targeted NPC. Why would you do that?"),
     { 0, 0, 0 },
 };
 

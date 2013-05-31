@@ -379,6 +379,9 @@ unsigned char code_loadmap[] = {
 0x58,                               // POP EAX
 0xE8,RELOC,                         // CALL $load_map_demo
 0xE8,RELOC,                         // CALL $clear_ents
+0x31,0xC0,                          // XOR EAX, EAX
+0xB0,0x02,                          // MOV AL, 2
+0xA3,RELOC,                         // MOV DWORD_PTR [$num_ents], EAX
 0xE8,RELOC,                         // CALL $find_spawns
 0xE8,RELOC,                         // CALL $cmd_randomspawn
 0xC2,0x04,0x00,                     // RETN 4
@@ -387,6 +390,7 @@ reloc reloc_loadmap[] = {
     { COH_REL, COHFUNC_MAP_CLEAR },
     { COH_REL, COHFUNC_LOAD_MAP_DEMO },
     { COH_REL, COHFUNC_CLEAR_ENTS },
+    { ICON_DATA, DATA_NUM_ENTS },
     { ICON_CODE_REL, CODE_FIND_SPAWNS },
     { ICON_CODE_REL, CODE_CMD_RANDOMSPAWN },
     { RELOC_END, 0 }
@@ -713,7 +717,79 @@ reloc reloc_create_ent[] = {
     { RELOC_END, 0 }
 };
 
-// ===== create_ent =====
+// ===== delete_ent =====
+// Calling convention: stdcall
+// Parameters:
+//      entity - pointer to entity
+// Deletes the specified entity.
+unsigned char code_delete_ent[] = {
+0x55,                           // PUSH EBP
+0x89,0xE5,                      // MOV EBP, ESP
+0x53,                           // PUSH EBX
+
+// Get the entity's "server" ID.
+0x8B,0x55,0x08,                 // MOV EDX, DWORD PTR [EBP+8]
+0x8B,0x9A,RELOC,                // MOV EBX, DWORD PTR [EDX+$svrid]
+// Remove it from the lookup table.
+0x31,0xC0,                      // XOR EAX, EAX
+0x89,0x04,0x9D,RELOC,           // MOV DWORD PTR [$enttbl+EBX*4], EAX
+// Finally deallocate it.
+0x52,                           // PUSH EDX
+0xE8,RELOC,                     // CALL $ent_free
+0x83,0xC4,0x04,                 // ADD ESP, 4
+
+0x5B,                           // POP EBX
+0xC9,                           // LEAVE
+0xC2,0x04,0x00                  // RETN 4
+};
+reloc reloc_delete_ent[] = {
+    { COH_ABS, COHVAR_ENT_SERVERID_OFFSET },
+    { COH_ABS, COHVAR_ENTTBL },
+    { COH_REL, COHFUNC_ENT_FREE },
+    { RELOC_END, 0 }
+};
+
+// ===== move_ent_to_player =====
+// Calling convention: stdcall
+// Parameters:
+//      entity - pointer to entity
+// Moves the specified entity to the player's position and facing, bumping
+// them out of the way. Citizens > All.
+unsigned char code_move_ent_to_player[] = {
+0x55,                           // PUSH EBP
+0x89,0xE5,                      // MOV EBP, ESP
+0x53,                           // PUSH EBX
+0x8B,0x1D,RELOC,                // MOV EBX, DWORD PTR [$player_ent]
+
+// Make room for a temporary PYR vector.
+0x83,0xEC,0x0C,                 // SUB ESP, 0C
+// Translate the player's matrix into a PYR vector.
+0x8D,0x55,0xF0,                 // LEA EDX, [EBP-10]
+0x52,                           // PUSH EDX     ; for later call to set_facing
+0x8D,0x4B,0x38,                 // LEA ECX, [EBX+38]
+0xE8,RELOC,                     // CALL $matrix_to_pyr
+// Now set the new entity to face the same way (pops 2 params from stack)
+0xFF,0x75,0x08,                 // PUSH DWORD PTR [EBP+08]
+0xE8,RELOC,                     // CALL $ent_set_facing
+// Finally, move the new entity to the player's position
+0x8D,0x53,0x5C,                 // LEA EDX, [EBX+5C]
+0x8B,0x4D,0x08,                 // MOV ECX, DWORD PTR [EBP+08]
+0xE8,RELOC,                     // CALL $ent_teleport
+
+0x5B,                           // POP EBX
+0xC9,                           // LEAVE
+0xC2,0x04,0x00                  // RETN 4
+};
+reloc reloc_move_ent_to_player[] = {
+    { COH_ABS, COHVAR_PLAYER_ENT },
+    { COH_REL, COHFUNC_MATRIX_TO_PYR },
+    { ICON_CODE_REL, CODE_ENT_SET_FACING },
+    { COH_REL, COHFUNC_ENT_TELEPORT },
+    { RELOC_END, 0 }
+};
+
+
+// ===== cmd_fly =====
 // Calling convention: Custom
 //      No stack changes
 //      Clobbers EAX, EBX, ECX, EDX, EDI
@@ -1037,6 +1113,117 @@ reloc reloc_cmd_randomspawn[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_spawnnpc =====
+// Calling convention: stdcall
+// Handler for spawning an NPC right on top of the player.
+unsigned char code_cmd_spawnnpc[] = {
+0x55,                           // PUSH EBP
+0x89,0xE5,                      // MOV EBP, ESP
+// Allocate space for the demo costume. Zero it all out.
+0x81,0xEC,0x94,0x00,0x00,0x00,  // SUB ESP, 94
+0x89,0xF8,                      // MOV EAX, EDI
+0x89,0xE7,                      // MOV EDI, ESP
+0x50,                           // PUSH EAX     ; preserve EDI for stdcall
+0xB9,0x25,0x00,0x00,0x00,       // MOV ECX, 25
+0x31,0xC0,                      // XOR EAX, EAX
+0xF3,0xAB,                      // REP STOSD [EDI]
+0x5F,                           // POP EDI
+// First see if this costume exists and the user actually specified a name.
+// NPC ID goes at offset 88 of the demo costume info, which starts at EBP-94
+0x8D,0x45,0xF4,                 // LEA EAX, [EBP-0C]
+0x50,                           // PUSH EAX
+0x68,RELOC,                     // PUSH OFFSET $param1
+0xE8,RELOC,                     // CALL $get_npc_costume
+0x83,0xC4,0x08,                 // ADD ESP, 8
+// Test the first byte of param2 to make sure it's not NULL.
+0xB9,RELOC,                     // MOV ECX, OFFSET $param2
+0x0F,0xB6,0x11,                 // MOVZX EDX, BYTE PTR [ECX]
+0x85,0xD2,                      // TEST EDX, EDX
+0x74,0x04,                      // JZ SHORT bad
+// Also test return value of get_npc_costume.
+0x85,0xC0,                      // TEST EAX, EAX
+0x75,0x02,                      // JNZ short paramsok
+// bad:
+0xC9,                           // LEAVE
+0xC3,                           // RETN
+
+// paramsok:
+// Everything checks out, so create the entity.
+0x51,                           // PUSH ECX     ; $param2
+0x6A,0x01,                      // PUSH 1
+0xE8,RELOC,                     // CALL $create_ent
+0x50,                           // PUSH EAX     ; for later call to move_ent
+// Abuse demo playback's costume setting thing.
+0x50,                           // PUSH EAX
+0x8D,0x85,0x6C,0xFF,0xFF,0xFF,  // LEA EAX, [EBP-94]
+0xE8,RELOC,                     // CALL $ent_set_costume_demo
+0x83,0xC4,0x04,                 // ADD ESP, 4
+// Now move the newly created entity to the player.
+0xE8,RELOC,                     // CALL $move_ent_to_player
+
+0xC9,                           // LEAVE
+0xC3                            // RETN
+};
+reloc reloc_cmd_spawnnpc[] = {
+    { ICON_DATA, DATA_PARAM1 },
+    { COH_REL, COHFUNC_GET_NPC_COSTUME },
+    { ICON_DATA, DATA_PARAM2 },
+    { ICON_CODE_REL, CODE_CREATE_ENT },
+    { COH_REL, COHFUNC_ENT_SET_COSTUME_DEMO },
+    { ICON_CODE_REL, CODE_MOVE_ENT_TO_PLAYER },
+    { RELOC_END, 0 }
+};
+
+// ===== cmd_movenpc =====
+// Calling convention: stdcall
+// Handler for moving an NPC to the player's position.
+unsigned char code_cmd_movenpc[] = {
+0xA1,RELOC,                     // MOV EAX, DWORD PTR [$target]
+0x85,0xC0,                      // TEST EAX,EAX
+0x75,0x01,                      // JNZ hastarget
+0xC3,                           // RETN
+// hastarget,
+0x50,                           // PUSH EAX
+0xE8,RELOC,                     // CALL $move_ent_to_player
+0xC3,                           // RETN
+};
+reloc reloc_cmd_movenpc[] = {
+    { COH_ABS, COHVAR_TARGET },
+    { ICON_CODE_REL, CODE_MOVE_ENT_TO_PLAYER },
+    { RELOC_END, 0 }
+};
+
+// ===== cmd_deletenpc =====
+// Calling convention: stdcall
+// Handler for deleting an NPC. Wraps delete_ent with some sanity checking.
+unsigned char code_cmd_deletenpc[] = {
+0xA1,RELOC,                     // MOV EAX, DWORD PTR [$target]
+0x85,0xC0,                      // TEST EAX,EAX
+0x75,0x01,                      // JNZ hastarget
+0xC3,                           // RETN
+// hastarget:
+// Make sure the player isn't a dummy and trying to delete themselves, as it
+// will crash (only possible if you're a cheater and have selectanyentity on).
+0x8B,0x15,RELOC,                // MOV EDX, DWORD PTR [$player_ent]
+0x39,0xD0,                      // CMP EAX, EDX
+0x75,0x01,                      // JNE targetok
+0xC3,                           // RETN
+// targetok:
+0x50,                           // PUSH EAX
+0xE8,RELOC,                     // CALL $delete_ent
+// Make sure that the current target is cleared out.
+0x31,0xC0,                      // XOR EAX,EAX
+0xA3,RELOC,                     // MOV DWORD PTR [$target], EAX
+0xC3,                           // RETN
+};
+reloc reloc_cmd_deletenpc[] = {
+    { COH_ABS, COHVAR_TARGET },
+    { COH_ABS, COHVAR_PLAYER_ENT },
+    { ICON_CODE_REL, CODE_DELETE_ENT },
+    { COH_ABS, COHVAR_TARGET },
+    { RELOC_END, 0 }
+};
+
 
 // ===== loadmap_cb =====
 // Calling convention: cdecl
@@ -1143,6 +1330,8 @@ codedef icon_code[] = {
     CODE(ENT_SET_FACING, code_ent_set_facing, reloc_ent_set_facing),
     CODE(SETUP_TUTORIAL, code_setup_tutorial, reloc_setup_tutorial),
     CODE(CREATE_ENT, code_create_ent, reloc_create_ent),
+    CODE(DELETE_ENT, code_delete_ent, reloc_delete_ent),
+    CODE(MOVE_ENT_TO_PLAYER, code_move_ent_to_player, reloc_move_ent_to_player),
 
     CODE(CMD_FLY, code_cmd_fly, reloc_cmd_fly),
     CODE(CMD_TORCH, code_cmd_torch, reloc_cmd_torch),
@@ -1156,6 +1345,9 @@ codedef icon_code[] = {
     CODE(CMD_PREVSPAWN, code_cmd_prevspawn, reloc_cmd_prevspawn),
     CODE(CMD_NEXTSPAWN, code_cmd_nextspawn, reloc_cmd_nextspawn),
     CODE(CMD_RANDOMSPAWN, code_cmd_randomspawn, reloc_cmd_randomspawn),
+    CODE(CMD_SPAWNNPC, code_cmd_spawnnpc, reloc_cmd_spawnnpc),
+    CODE(CMD_MOVENPC, code_cmd_movenpc, reloc_cmd_movenpc),
+    CODE(CMD_DELETENPC, code_cmd_deletenpc, reloc_cmd_deletenpc),
 
     CODE(LOADMAP_CB, code_loadmap_cb, reloc_loadmap_cb),
     CODE(POS_UPDATE_CB, code_pos_update_cb, reloc_pos_update_cb),

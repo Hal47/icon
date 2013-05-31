@@ -87,6 +87,9 @@ command icon_commands[] = {
     { 0, STR_CMD_PREVSPAWN, CODE_CMD_PREVSPAWN, {{ 0 }}, 1, STR_CMD_PREVSPAWN_HELP },
     { 0, STR_CMD_NEXTSPAWN, CODE_CMD_NEXTSPAWN, {{ 0 }}, 1, STR_CMD_NEXTSPAWN_HELP },
     { 0, STR_CMD_RANDOMSPAWN, CODE_CMD_RANDOMSPAWN, {{ 0 }}, 1, STR_CMD_RANDOMSPAWN_HELP },
+    { 0, STR_CMD_SPAWNNPC, CODE_CMD_SPAWNNPC, {{ ARG_STRING, DATA_PARAM1, 255 }, { ARG_LINE, DATA_PARAM2, 255 }}, 1, STR_CMD_SPAWNNPC_HELP },
+    { 0, STR_CMD_MOVENPC, CODE_CMD_MOVENPC, {{ 0 }}, 1, STR_CMD_MOVENPC_HELP },
+    { 0, STR_CMD_DELETENPC, CODE_CMD_DELETENPC, {{ 0 }}, 1, STR_CMD_DELETENPC_HELP },
     { 0 }
 };
 
@@ -122,6 +125,8 @@ bind_ent icon_bind_list[] = {
     { "[", STR_CMD_PREVSPAWN },
     { "]", STR_CMD_NEXTSPAWN },
     { "f12", STR_CMD_RANDOMSPAWN },
+    { "g", STR_CMD_MOVENPC },
+    { "shift+delete", STR_CMD_DELETENPC },
     { 0, 0 },
 };
 
@@ -143,6 +148,7 @@ static datamap icon_data[] = {
     { DATA_COMMAND_LIST, sizeof(icon_command_list), &icon_command_list },
     { DATA_COMMAND_FUNCS, CODE_END*sizeof(DWORD), 0 },
     { DATA_PARAM1, 255, 0 },
+    { DATA_PARAM2, 255, 0 },
     { DATA_COYOTE_POS, sizeof(coyote_pos), &coyote_pos },
     { DATA_COYOTE_ROT, sizeof(coyote_rot), &coyote_rot },
     { DATA_SHOW_TOOLBAR, sizeof(int), 0 },
