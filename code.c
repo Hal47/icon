@@ -758,33 +758,22 @@ reloc reloc_delete_ent[] = {
 unsigned char code_move_ent_to_player[] = {
 0x55,                           // PUSH EBP
 0x89,0xE5,                      // MOV EBP, ESP
-0x53,                           // PUSH EBX
-0x8B,0x1D,RELOC,                // MOV EBX, DWORD PTR [$player_ent]
+0x56,                           // PUSH ESI
 
-// Make room for a temporary PYR vector.
-0x83,0xEC,0x0C,                 // SUB ESP, 0C
-// Translate the player's matrix into a PYR vector.
-0x8D,0x55,0xF0,                 // LEA EDX, [EBP-10]
-0x52,                           // PUSH EDX     ; for later call to set_facing
-0x8D,0x4B,0x38,                 // LEA ECX, [EBX+38]
-0xE8,RELOC,                     // CALL $matrix_to_pyr
-// Now set the new entity to face the same way (pops 2 params from stack)
-0xFF,0x75,0x08,                 // PUSH DWORD PTR [EBP+08]
-0xE8,RELOC,                     // CALL $ent_set_facing
-// Finally, move the new entity to the player's position
-0x8D,0x53,0x5C,                 // LEA EDX, [EBX+5C]
-0x8B,0x4D,0x08,                 // MOV ECX, DWORD PTR [EBP+08]
-0xE8,RELOC,                     // CALL $ent_teleport
+// Get the player's transformation matrix.
+0x8B,0x0D,RELOC,                // MOV ECX, DWORD PTR [$player_ent]
+0x8D,0x49,0x38,                 // LEA ECX, [ECX+38]
+// Apply that matrix to the entity.
+0x8B,0x75,0x08,                 // MOV ESI, DWORD PTR [EBP+08]
+0xE8,RELOC,                     // CALL $ent_set_matrix
 
-0x5B,                           // POP EBX
+0x5E,                           // POP ESI
 0xC9,                           // LEAVE
 0xC2,0x04,0x00                  // RETN 4
 };
 reloc reloc_move_ent_to_player[] = {
     { COH_ABS, COHVAR_PLAYER_ENT },
-    { COH_REL, COHFUNC_MATRIX_TO_PYR },
-    { ICON_CODE_REL, CODE_ENT_SET_FACING },
-    { COH_REL, COHFUNC_ENT_TELEPORT },
+    { COH_REL, COHFUNC_ENT_SET_MATRIX },
     { RELOC_END, 0 }
 };
 
