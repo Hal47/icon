@@ -130,13 +130,6 @@ bind_ent icon_bind_list[] = {
     { 0, 0 },
 };
 
-float coyote_pos[3] = {
-    -480, -32, 2024
-};
-float coyote_rot[3] = {
-    0, 3.141592653, 0
-};
-
 int num_ents = 2;
 
 static datamap icon_data[] = {
@@ -149,8 +142,6 @@ static datamap icon_data[] = {
     { DATA_COMMAND_FUNCS, CODE_END*sizeof(DWORD), 0 },
     { DATA_PARAM1, 255, 0 },
     { DATA_PARAM2, 255, 0 },
-    { DATA_COYOTE_POS, sizeof(coyote_pos), &coyote_pos },
-    { DATA_COYOTE_ROT, sizeof(coyote_rot), &coyote_rot },
     { DATA_SHOW_TOOLBAR, sizeof(int), 0 },
     { DATA_NUM_ENTS, sizeof(num_ents), &num_ents },
     { DATA_SPAWN_LIST, sizeof(DWORD), 0 },

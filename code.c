@@ -135,12 +135,6 @@ static unsigned char code_enter_game[] = {
 
 0xE8,RELOC,                         // CALL $setup_binds
 
-// Add easter egg if they picked the tutorial.
-0x8B,0x0D,RELOC,                    // MOV ECX,DWORD PTR [$start_choice]
-0x83,0xF9,0x00,                     // CMP ECX,0
-0x75,0x05,                          // JNE SHORT out
-0xE8,RELOC,                         // CALL $setup_tutorial
-
 // out:
 0x61,                               // POPAD
 0xC3,                               // RETN
@@ -172,8 +166,6 @@ reloc reloc_enter_game[] = {
     { COH_ABS, COHVAR_ENTTBL },
     { COH_ABS, COHVAR_EDIT_TRANSFORM_ABS },
     { ICON_CODE_REL, CODE_SETUP_BINDS },
-    { COH_ABS, COHVAR_START_CHOICE },
-    { ICON_CODE_REL, CODE_SETUP_TUTORIAL },
     { RELOC_END, 0 }
 };
 
@@ -833,69 +825,6 @@ unsigned char code_ent_flip[] = {
 reloc reloc_ent_flip[] = {
     { COH_REL, COHFUNC_MATRIX_TO_PYR },
     { ICON_CODE_REL, CODE_ENT_SET_FACING },
-};
-
-// ===== setup_tutorial =====
-// Calling convention: Custom
-//      No stack changes
-//      Clobbers EAX, ECD, EDX, EDI
-// Sets up something special in the tutorial...
-unsigned char code_setup_tutorial[] = {
-0x55,                           // PUSH EBP
-0x89,0xE5,                      // MOV EBP, ESP
-0x68,RELOC,                     // PUSH OFFSET $coyote_name
-0x6A,0x01,                      // PUSH 1
-0xE8,RELOC,                     // CALL $create_ent
-0x50,                           // PUSH EAX
-0x50,                           // PUSH EAX
-0x83,0x88,RELOC,0x08,           // OR DWORD PTR [EAX+$ent_flags], 8
-0x89,0xC1,                      // MOV ECX, EAX
-0xBA,RELOC,                     // MOV EDX, OFFSET $coyote_pos
-0xE8,RELOC,                     // CALL $ent_teleport
-0x58,                           // POP EAX
-0x68,RELOC,                     // PUSH OFFSET $coyote_rot
-0x50,                           // PUSH EAX
-0xE8,RELOC,                     // CALL $ent_set_facing
-0x81,0xEC,0x94,0x00,0x00,0x00,  // SUB ESP, 94
-0x89,0xE7,                      // MOV EDI, ESP
-0xB9,0x25,0x00,0x00,0x00,       // MOV ECX, 25
-0x31,0xC0,                      // XOR EAX, EAX
-0x57,                           // PUSH EDI
-0xF3,0xAB,                      // REP STOSD [EDI]
-0x5F,                           // POP EDI
-0x89,0xE0,                      // MOV EAX, ESP
-0x83,0xEC,0x04,                 // SUB ESP, 4
-0x54,                           // PUSH ESP
-0x68,RELOC,                     // PUSH OFFSET $coyote_costume
-0xE8,RELOC,                     // CALL $get_npc_costume
-0x83,0xC4,0x08,                 // ADD ESP, 8
-0x8B,0x0C,0xE4,                 // MOV ECX, DWORD PTR [ESP]
-0x89,0x8F,0x88,0x00,0x00,0x00,  // MOV DWORD PTR [EDI+88], ECX
-0xFF,0x75,0xFC,                 // PUSH DWORD PTR [EBP-4]
-0x89,0xF8,                      // MOV EAX, EDI
-0xE8,RELOC,                     // CALL $ent_set_costume_demo
-0x83,0xC4,0x04,                 // ADD ESP, 4
-0x68,RELOC,                     // PUSH OFFSET $coyote_mov
-0xFF,0x75,0xFC,                 // PUSH DWORD PTR [EDI-4]
-0xE8,RELOC,                     // CALL $generic_mov
-
-0xC9,                           // LEAVE
-0xC3,                           // RETN
-};
-reloc reloc_setup_tutorial[] = {
-    { ICON_STR, STR_COYOTE_NAME },
-    { ICON_CODE_REL, CODE_CREATE_ENT },
-    { COH_ABS, COHVAR_ENT_FLAGS_OFFSET },
-    { ICON_DATA, DATA_COYOTE_POS },
-    { COH_REL, COHFUNC_ENT_TELEPORT },
-    { ICON_DATA, DATA_COYOTE_ROT },
-    { ICON_CODE_REL, CODE_ENT_SET_FACING },
-    { ICON_STR, STR_COYOTE_MODEL },
-    { COH_REL, COHFUNC_GET_NPC_COSTUME_IDX },
-    { COH_REL, COHFUNC_ENT_SET_COSTUME_DEMO },
-    { ICON_STR, STR_COYOTE_MOV },
-    { ICON_CODE_REL, CODE_GENERIC_MOV },
-    { RELOC_END, 0 }
 };
 
 // ===== create_ent =====
@@ -1661,7 +1590,6 @@ codedef icon_code[] = {
     CODE(GOTO_SPAWN, goto_spawn),
     CODE(ENT_SET_FACING, ent_set_facing),
     CODE(ENT_FLIP, ent_flip),
-    CODE(SETUP_TUTORIAL, setup_tutorial),
     CODE(CREATE_ENT, create_ent),
     CODE(DELETE_ENT, delete_ent),
     CODE(ENT_NPC_COSTUME, ent_npc_costume),
