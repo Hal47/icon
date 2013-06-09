@@ -58,11 +58,14 @@ static codedef **codedef_cache = 0;
 // 'Enter Game'.
 static unsigned char code_enter_game[] = {
 0x60,                               // PUSHAD
+
+0xE8,RELOC,                         // CALL $icon_init
+
 // Lookup map to load in our data table based on player selection.
 0x8B,0x0D,RELOC,                    // MOV ECX,DWORD PTR [$start_choice]
 0x8B,0x04,0x8D,RELOC,               // MOV EAX,DWORD PTR DS:[ECX*4+$STR]
 0xE8,RELOC,                         // CALL $load_map_demo
-0xE8,RELOC,                         // CALL $find_spawns
+0xE8,RELOC,                         // CALL $scan_map
 // Get the player entity and its character sub-entry.
 0xA1,RELOC,                         // MOV EAX,DWORD PTR [$player_ent]
 0x8B,0x80,RELOC,                    // MOV EAX,DWORD PTR DS:[EAX+$charoff]
@@ -143,10 +146,11 @@ static unsigned char code_enter_game[] = {
 0xC3,                               // RETN
 };
 reloc reloc_enter_game[] = {
+    { ICON_CODE_REL, CODE_ICON_INIT },
     { COH_ABS, COHVAR_START_CHOICE },
     { ICON_DATA, DATA_ZONE_MAP },
     { COH_REL, COHFUNC_LOAD_MAP_DEMO },
-    { ICON_CODE_REL, CODE_FIND_SPAWNS },
+    { ICON_CODE_REL, CODE_SCAN_MAP },
     { COH_ABS, COHVAR_PLAYER_ENT },
     { COH_ABS, COHVAR_ENT_CHAR_OFFSET },
     { COH_REL, COHFUNC_COPY_ATTRIBS },
@@ -170,6 +174,75 @@ reloc reloc_enter_game[] = {
     { ICON_CODE_REL, CODE_SETUP_BINDS },
     { COH_ABS, COHVAR_START_CHOICE },
     { ICON_CODE_REL, CODE_SETUP_TUTORIAL },
+    { RELOC_END, 0 }
+};
+
+// ===== icon_init =====
+// Calling convention: stdcall
+// Sets up global Icon stuff
+unsigned char code_icon_init[] = {
+// The hash table init expects a file and line for debugging, give it some
+// garbage.
+0x53,                           // PUSH EBX
+0x55,                           // PUSH EBP
+0x57,                           // PUSH EDI
+0x56,                           // PUSH ESI
+0xB9,RELOC,                     // MOV ECX, OFFSET $dummy_filename
+0xBA,0xCE,0xFA,0x00,0x00,       // MOV EDX, 0000FACE
+// Flags 1 seems to have something to do with strcpy()ing keys.
+0x6A,0x01,                      // PUSH 1
+// Approximate number of entries to expect.
+0x68,0x00,0x06,0x00,0x00,       // PUSH 0600
+0xE8,RELOC,                     // CALL $hash_create
+0x83,0xC4,0x08,                 // ADD ESP, 8
+0xA3,RELOC,                     // MOV DWORD PTR [$npc_hash], EAX
+0x89,0xC6,                      // MOV ESI, EAX
+// Now go through the NPC list and populate our hash. This list uses a
+// crazy header that comes before the pointer, unlike the other arrays.
+0x8B,0x15,RELOC,                // MOV EDX, DWORD PTR [$npc_list]
+0x8B,0x4A,0xF4,                 // MOV ECX, DWORD PTR [EDX-0C]
+// npcloop:
+// Get current item.
+0x8B,0x1A,                      // MOV EBX, DWORD PTR [EDX]
+// Follow that to filename pointer.
+0x8B,0x43,0x04,                 // MOV EAX, DWORD PTR [EBX+4]
+// EAX now has the filename, advance to first '/' to skip past scripts.loc/
+// strloop:
+0x80,0x38,0x2F,                 // CMP BYTE PTR [EAX], 2F
+0x74,0x08,                      // JE SHORT found
+// Make sure we haven't hit the end of the string.
+0x80,0x38,0x00,                 // CMP BYTE PTR [EAX], 0
+0x74,0x14,                      // JE SHORT next
+0x40,                           // INC EAX
+0xEB,0xF3,                      // JMP SHORT strloop
+// found:
+0x40,                           // INC EAX
+0x51,                           // PUSH ECX
+0x52,                           // PUSH EDX
+// Set up function call: Key, value, replace.
+0x6A,0x01,                      // PUSH 1
+0x53,                           // PUSH EBX
+0x50,                           // PUSH EAX
+0xE8,RELOC,                     // CALL $hash_insert
+0x83,0xC4,0x0C,                 // ADD ESP, 0C
+// Restore saved registers after call.
+0x5A,                           // POP EDX
+0x59,                           // POP ECX
+// next:
+0x8D,0x52,0x04,                 // LEA EDX, [EDX+4]
+0xE2,0xD8,                      // LOOP SHORT npcloop
+0x5E,                           // POP ESI
+0x5F,                           // POP EDI
+0x5D,                           // POP EBP
+0x5B,                           // POP EBX
+0xC3,                           // RETN
+};
+reloc reloc_icon_init[] = {
+    { ICON_STR, STR_DUMMY_FILENAME },
+    { COH_REL, COHFUNC_HASH_CREATE },
+    { ICON_DATA, DATA_NPC_HASH },
+    { COH_ABS, COHVAR_NPC_LIST },
+    { COH_REL, COHFUNC_HASH_INSERT },
     { RELOC_END, 0 }
 };
 
@@ -382,7 +455,7 @@ unsigned char code_loadmap[] = {
 0x31,0xC0,                          // XOR EAX, EAX
 0xB0,0x02,                          // MOV AL, 2
 0xA3,RELOC,                         // MOV DWORD_PTR [$num_ents], EAX
-0xE8,RELOC,                         // CALL $find_spawns
+0xE8,RELOC,                         // CALL $scan_map
 0xE8,RELOC,                         // CALL $cmd_randomspawn
 0xC2,0x04,0x00,                     // RETN 4
 };
@@ -391,15 +464,15 @@ reloc reloc_loadmap[] = {
     { COH_REL, COHFUNC_LOAD_MAP_DEMO },
     { COH_REL, COHFUNC_CLEAR_ENTS },
     { ICON_DATA, DATA_NUM_ENTS },
-    { ICON_CODE_REL, CODE_FIND_SPAWNS },
+    { ICON_CODE_REL, CODE_SCAN_MAP },
     { ICON_CODE_REL, CODE_CMD_RANDOMSPAWN },
     { RELOC_END, 0 }
 };
 
-// ===== find_spawns =====
+// ===== scan_map =====
 // Calling convention: stdcall
 // Parses the currently loaded map to find all the player spawn points.
-unsigned char code_find_spawns[] = {
+unsigned char code_scan_map[] = {
 // Clear out old list if one exists.
 0xA1,RELOC,                     // MOV EAX, DWORD PTR [$spawn_list]
 0x85,0xC0,                      // TEST EAX, EAX
@@ -414,7 +487,7 @@ unsigned char code_find_spawns[] = {
 0xA3,RELOC,                     // MOV DWORD PTR [$spawn_list], EAX
 0xC3,                           // RETN
 };
-reloc reloc_find_spawns[] = {
+reloc reloc_scan_map[] = {
     { ICON_DATA, DATA_SPAWN_LIST },
     { COH_REL, COHFUNC_FREE_ARRAY },
     { COH_ABS, COHVAR_MAP_ROOT },
@@ -433,6 +506,7 @@ reloc reloc_find_spawns[] = {
 unsigned char code_map_traverser[] = {
 0x55,                           // PUSH EBP
 0x89,0xE5,                      // MOV EBP, ESP
+0x57,                           // PUSH EDI
 // We're passed a pointer to information about this def node.
 0x8B,0x55,0x08,                 // MOV EDX, DWORD PTR [EBP+8]
 // Get the node itself.
@@ -440,7 +514,14 @@ unsigned char code_map_traverser[] = {
 
 // Check flags to see if it has any properties.
 0xF6,0x42,0x3A,0x02,            // TEST BYTE PTR [EDX+3A], 02
-0x74,0x20,                      // JZ SHORT nomatch
+0x74,0x29,                      // JZ SHORT nomatch
+// It does, so first call a subroutine to handle if it's an NPC spawn point.
+0xFF,0x75,0x08,                 // PUSH DWORD PTR [EBP+8]
+0x52,                           // PUSH EDX
+0xFF,0x75,0x08,                 // PUSH DWORD PTR [EBP+8]
+0x52,                           // PUSH EDX
+0xE8,RELOC,                     // CALL $check_npc_spawn
+0xE8,RELOC,                     // CALL $check_door_spawn
 // Get pointer to the properties hash table.
 0x8B,0xBA,0xE0,0x00,0x00,0x00,  // MOV EDI, DWORD PTR [EDX+E0]
 // See if it has a property called "SpawnLocation".
@@ -467,12 +548,179 @@ unsigned char code_map_traverser[] = {
 0x31,0xC0,                      // XOR EAX, EAX
 
 // out:
+0x5F,                           // POP EDI
 0xC9,                           // LEAVE
 0xC3,                           // RETN
 };
 reloc reloc_map_traverser[] = {
+    { ICON_CODE_REL, CODE_CHECK_NPC_SPAWN },
+    { ICON_CODE_REL, CODE_CHECK_DOOR_SPAWN },
     { ICON_STR, STR_SPAWNLOCATION },
     { COH_REL, COHFUNC_HASH_LOOKUP },
+    { RELOC_END, 0 }
+};
+
+// ===== check_npc_spawn =====
+// Calling convention: stdcall + EDX preserved
+// Parameters:
+//      def - pointer to a map def
+//      info - pointer to a meta info structure about the def
+// Subroutine called during map traversal to check for NPC spawn points. If
+// one is found, spawn an NPC there.
+unsigned char code_check_npc_spawn[] = {
+0x55,                           // PUSH EBP
+0x89,0xE5,                      // MOV EBP, ESP
+0x52,                           // PUSH EDX
+0x57,                           // PUSH EDI
+0x56,                           // PUSH ESI
+
+// Get pointer to the properties hash table.
+0x8B,0x55,0x08,                 // MOV EDX, DWORD PTR [EBP+8]
+0x8B,0xBA,0xE0,0x00,0x00,0x00,  // MOV EDI, DWORD PTR [EDX+E0]
+// See if it has a property called "PersistentNPC".
+0x68,RELOC,                     // PUSH OFFSET $persistentnpc
+0xE8,RELOC,                     // CALL $hash_lookup
+0x83,0xC4,0x04,                 // ADD ESP, 4
+0x85,0xC0,                      // TEST EAX, EAX
+0x74,0x50,                      // JZ SHORT out
+
+// It does, so get the filename from the property. The 40 is because property
+// names have a fixed max length and the pointer to the value is right after.
+0x8B,0x70,0x40,                 // MOV ESI, DWORD PTR [EAX+40]
+// Change backslashes to forward slashes. This overwrites the original, but
+// we don't care since the game doesn't use this anyway.
+0xE8,RELOC,                     // CALL $backslash_fix
+// Look it up in our NPC hash table.
+0x8B,0x3D,RELOC,                // MOV EDI, DWORD PTR [$npc_hash]
+0x56,                           // PUSH ESI
+0xE8,RELOC,                     // CALL $hash_lookup
+0x83,0xC4,0x04,                 // ADD ESP, 4
+0x85,0xC0,                      // TEST EAX, EAX
+0x74,0x35,                      // JZ SHORT out
+
+0x50,                           // PUSH EAX         ; save for later
+// We found the NPC. So create an entity using the display name (4th field).
+0x8B,0x40,0x0C,                 // MOV EAX, DWORD PTR [EAX+0C]
+0xE8,RELOC,                     // CALL $translate
+0x50,                           // PUSH EAX
+0x6A,0x01,                      // PUSH 1
+0xE8,RELOC,                     // CALL $create_ent
+// Set its flags so it shows as a contact-type green name NPC.
+0x83,0x88,RELOC,0x08,           // OR DWORD PTR [EAX+$ent_flags], 8
+
+0x5A,                           // POP EDX          ; NPC info, was EAX
+0x50,                           // PUSH EAX         ; for later
+// Now set its costume to the model of the NPC.
+0xFF,0x72,0x08,                 // PUSH DWORD PTR [EDX+08]
+0x50,                           // PUSH EAX         ; entity
+0xE8,RELOC,                     // CALL $ent_npc_costume
+
+// Now move the new NPC to the right location.
+0x5E,                           // POP ESI          ; entity
+0x8B,0x4D,0x0C,                 // MOV ECX, DWORD PTR [EBP+0C]
+0x83,0xC1,0x04,                 // ADD ECX, 4
+0xE8,RELOC,                     // CALL $ent_set_matrix
+
+// Buuuuut, all the spawn info in the game is backwards for some unknown
+// reason. So spin the NPC around.
+0x56,                           // PUSH ESI
+0xE8,RELOC,                     // CALL $ent_flip
+
+// out:
+0x5E,                           // POP ESI
+0x5F,                           // POP EDI
+0x5A,                           // POP EDX
+0xC9,                           // LEAVE
+0xC2,0x08,0x00,                 // RETN 8
+};
+
+reloc reloc_check_npc_spawn[] = {
+    { ICON_STR, STR_PERSISTENTNPC },
+    { COH_REL, COHFUNC_HASH_LOOKUP },
+    { COH_REL, COHFUNC_BACKSLASH_FIX },
+    { ICON_DATA, DATA_NPC_HASH },
+    { COH_REL, COHFUNC_HASH_LOOKUP },
+    { COH_REL, COHFUNC_TRANSLATE },
+    { ICON_CODE_REL, CODE_CREATE_ENT },
+    { COH_ABS, COHVAR_ENT_FLAGS_OFFSET },
+    { ICON_CODE_REL, CODE_ENT_NPC_COSTUME },
+    { COH_REL, COHFUNC_ENT_SET_MATRIX },
+    { ICON_CODE_REL, CODE_ENT_FLIP },
+    { RELOC_END, 0 }
+};
+
+// ===== check_door_spawn =====
+// Calling convention: stdcall + EDX preserved
+// Parameters:
+//      def - pointer to a map def
+//      info - pointer to a meta info structure about the def
+// Subroutine called during map traversal to check for door spawn points. If
+// one is found, spawn a door there.
+unsigned char code_check_door_spawn[] = {
+0x55,                           // PUSH EBP
+0x89,0xE5,                      // MOV EBP, ESP
+0x52,                           // PUSH EDX
+0x57,                           // PUSH EDI
+0x56,                           // PUSH ESI
+
+// Get pointer to the properties hash table.
+0x8B,0x55,0x08,                 // MOV EDX, DWORD PTR [EBP+8]
+0x8B,0xBA,0xE0,0x00,0x00,0x00,  // MOV EDI, DWORD PTR [EDX+E0]
+// See if it's a generator.
+0x68,RELOC,                     // PUSH OFFSET $generator
+0xE8,RELOC,                     // CALL $hash_lookup
+0x83,0xC4,0x04,                 // ADD ESP, 4
+0x85,0xC0,                      // TEST EAX, EAX
+0x74,0x35,                      // JZ SHORT out
+
+// Get the pointer from the property hash.
+0x8B,0x78,0x40,                 // MOV EDI, DWORD PTR [EAX+40]
+// Check to make sure the costume is valid.
+0x57,                           // PUSH EDI
+0x6A,0x00,                      // PUSH 0           ; means to check costume
+0xE8,RELOC,                     // CALL $ent_npc_costume
+0x85,0xC0,                      // TEST EAX, EAX
+0x74,0x26,                      // JZ SHORT out
+
+// We found the costume. So create an entity named "Door".
+0x68,RELOC,                     // PUSH OFFSET $door
+0x6A,0x08,                      // PUSH 8
+0xE8,RELOC,                     // CALL $create_ent
+
+0x50,                           // PUSH EAX         ; for later
+// Now set its costume to the model from the generator.
+0x57,                           // PUSH EDI
+0x50,                           // PUSH EAX         ; entity
+0xE8,RELOC,                     // CALL $ent_npc_costume
+
+// Now move the new entity to the right location.
+0x5E,                           // POP ESI          ; entity
+0x8B,0x4D,0x0C,                 // MOV ECX, DWORD PTR [EBP+0C]
+0x83,0xC1,0x04,                 // ADD ECX, 4
+0xE8,RELOC,                     // CALL $ent_set_matrix
+
+// Buuuuut, all the spawn info in the game is backwards for some unknown
+// reason. So spin the entity around.
+0x56,                           // PUSH ESI
+0xE8,RELOC,                     // CALL $ent_flip
+
+// out:
+0x5E,                           // POP ESI
+0x5F,                           // POP EDI
+0x5A,                           // POP EDX
+0xC9,                           // LEAVE
+0xC2,0x08,0x00,                 // RETN 8
+};
+
+reloc reloc_check_door_spawn[] = {
+    { ICON_STR, STR_GENERATOR },
+    { COH_REL, COHFUNC_HASH_LOOKUP },
+    { ICON_CODE_REL, CODE_ENT_NPC_COSTUME },
+    { ICON_STR, STR_DOOR },
+    { ICON_CODE_REL, CODE_CREATE_ENT },
+    { ICON_CODE_REL, CODE_ENT_NPC_COSTUME },
+    { COH_REL, COHFUNC_ENT_SET_MATRIX },
+    { ICON_CODE_REL, CODE_ENT_FLIP },
     { RELOC_END, 0 }
 };
 
@@ -554,6 +802,39 @@ reloc reloc_ent_set_facing[] = {
     { RELOC_END, 0 }
 };
 
+// ===== ent_flip =====
+// Calling convention: stdcall
+// Parameters:
+//      entity - pointer to entity struct
+// Turns an entity around 180 degrees. Used by the spawn code.
+unsigned char code_ent_flip[] = {
+// Get the matrix from the entity.
+0x8B,0x4C,0xE4,0x04,            // MOV ECX, DWORD PTR [ESP+4]
+0x8D,0x49,0x38,                 // LEA ECX, [ECX+38]
+// Allocate some temp space on the stack to use.
+0x83,0xEC,0x0C,                 // SUB ESP, 0C
+0x89,0xE2,                      // MOV EDX, ESP
+0xE8,RELOC,                     // CALL $matrix_to_pyr
+// Add Pi radians to yaw.
+0x89,0xE0,                      // MOV EAX, ESP     ; EAX points to temp vector
+0xD9,0x44,0xE4,0x04,            // FLD DWORD PTR [ESP+04]
+0xD9,0xEB,                      // FLDPI
+0xDE,0xC1,                      // FADDP
+0xD9,0x5C,0xE4,0x04,            // FSTP DWORD PTR [ESP+04]
+// Pitch should always be zero.
+0x31,0xC9,                      // XOR ECX, ECX
+0x89,0x4C,0xE4,0x08,            // MOV DWORD PTR [ESP+08], ECX
+0x50,                           // PUSH EAX
+0xFF,0x74,0xE4,0x14,            // PUSH DWORD PTR [ESP+14]      ; entity
+0xE8,RELOC,                     // CALL $set_ent_facing
+0x83,0xC4,0x0C,                 // ADD ESP, 0C      ; clean up stack
+0xC2,0x04,0x00,                 // RETN 4
+};
+reloc reloc_ent_flip[] = {
+    { COH_REL, COHFUNC_MATRIX_TO_PYR },
+    { ICON_CODE_REL, CODE_ENT_SET_FACING },
+};
+
 // ===== setup_tutorial =====
 // Calling convention: Custom
 //      No stack changes
@@ -610,7 +891,7 @@ reloc reloc_setup_tutorial[] = {
     { ICON_DATA, DATA_COYOTE_ROT },
     { ICON_CODE_REL, CODE_ENT_SET_FACING },
     { ICON_STR, STR_COYOTE_MODEL },
-    { COH_REL, COHFUNC_GET_NPC_COSTUME },
+    { COH_REL, COHFUNC_GET_NPC_COSTUME_IDX },
     { COH_REL, COHFUNC_ENT_SET_COSTUME_DEMO },
     { ICON_STR, STR_COYOTE_MOV },
     { ICON_CODE_REL, CODE_GENERIC_MOV },
@@ -748,6 +1029,65 @@ reloc reloc_delete_ent[] = {
     { COH_REL, COHFUNC_ENT_FREE },
     { RELOC_END, 0 }
 };
+
+// ===== ent_npc_costume =====
+// Calling convention: stdcall
+// Parameters:
+//      entity - pointer to entity
+//      costume - name of NPC costume
+// Sets the specified entity to use an NPC costume.
+unsigned char code_ent_npc_costume[] = {
+0x55,                           // PUSH EBP
+0x89,0xE5,                      // MOV EBP, ESP
+0x83,0xEC,0x04,                 // SUB ESP, 4
+0x56,                           // PUSH ESI
+
+// Try to find the costume by name.
+0x8D,0x45,0xFC,                 // LEA EAX, [EBP-04]
+0x50,                           // PUSH EAX
+0xFF,0x75,0x0C,                 // PUSH DWORD PTR [EBP+C]
+0xE8,RELOC,                     // CALL $get_npc_costume_idx
+0x83,0xC4,0x08,                 // ADD ESP, 8
+0x85,0xC0,                      // TEST EAX, EAX
+0x74,0x2B,                      // JZ SHORT out
+
+// Now get a pointer to the NPC costume.
+0x8B,0x55,0xFC,                 // MOV EDX, DWORD PTR [EBP-4]
+0x31,0xF6,                      // XOR ESI, ESI
+0xE8,RELOC,                     // CALL $get_npc_costume_ptr
+0x85,0xC0,                      // TEST EAX, EAX
+0x74,0x1D,                      // JZ SHORT out
+
+// Early out of the entity is NULL, allows this to be used as a test to see
+// if the costume name is valid.
+0x83,0x7D,0x08,0x00,            // CMP DWORD PTR [EBP+8], 0
+0x74,0x14,                      // JE SHORT success
+
+// Finally, set the entity to use it.
+0x50,                           // PUSH EAX
+0x8B,0x45,0x08,                 // MOV EAX, DWORD PTR [EBP+8]
+0xE8,RELOC,                     // CALL $ent_set_costume_npc_ptr
+0x83,0xC4,0x04,                 // ADD ESP, 4
+0x8B,0x4D,0x08,                 // MOV ECX, DWORD PTR [EBP+8]
+0xE8,RELOC,                     // CALL $ent_costume_updated
+
+// success:
+// Return success
+0x83,0xC8,0x01,                 // OR EAX, 1
+
+// out:
+0x5E,                           // POP ESI
+0xC9,                           // LEAVE
+0xC2,0x08,0x00,                 // RETN 8
+};
+reloc reloc_ent_npc_costume[] = {
+    { COH_REL, COHFUNC_GET_NPC_COSTUME_IDX },
+    { COH_REL, COHFUNC_GET_NPC_COSTUME_PTR },
+    { COH_REL, COHFUNC_ENT_SET_COSTUME_NPC_PTR },
+    { COH_REL, COHFUNC_ENT_COSTUME_UPDATED },
+    { RELOC_END, 0 }
+};
+
 
 // ===== move_ent_to_player =====
 // Calling convention: stdcall
@@ -1155,7 +1495,7 @@ unsigned char code_cmd_spawnnpc[] = {
 };
 reloc reloc_cmd_spawnnpc[] = {
     { ICON_DATA, DATA_PARAM1 },
-    { COH_REL, COHFUNC_GET_NPC_COSTUME },
+    { COH_REL, COHFUNC_GET_NPC_COSTUME_IDX },
     { ICON_DATA, DATA_PARAM2 },
     { ICON_CODE_REL, CODE_CREATE_ENT },
     { COH_REL, COHFUNC_ENT_SET_COSTUME_DEMO },
@@ -1308,18 +1648,23 @@ reloc reloc_pos_update_cb[] = {
 #define CODE(id, c) { CODE_##id, 0, sizeof(code_##c), code_##c, reloc_##c }
 codedef icon_code[] = {
     CODE(ENTER_GAME, enter_game),
+    CODE(ICON_INIT, icon_init),
     CODE(SETUP_BINDS, setup_binds),
     CODE(CMD_HANDLER, cmd_handler),
     CODE(GENERIC_MOV, generic_mov),
     CODE(GET_TARGET, get_target),
     CODE(LOADMAP, loadmap),
-    CODE(FIND_SPAWNS, find_spawns),
+    CODE(SCAN_MAP, scan_map),
     CODE(MAP_TRAVERSER, map_traverser),
+    CODE(CHECK_NPC_SPAWN, check_npc_spawn),
+    CODE(CHECK_DOOR_SPAWN, check_door_spawn),
     CODE(GOTO_SPAWN, goto_spawn),
     CODE(ENT_SET_FACING, ent_set_facing),
+    CODE(ENT_FLIP, ent_flip),
     CODE(SETUP_TUTORIAL, setup_tutorial),
     CODE(CREATE_ENT, create_ent),
     CODE(DELETE_ENT, delete_ent),
+    CODE(ENT_NPC_COSTUME, ent_npc_costume),
     CODE(MOVE_ENT_TO_PLAYER, move_ent_to_player),
 
     CODE(CMD_FLY, cmd_fly),

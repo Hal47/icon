@@ -24,6 +24,8 @@ enum {
     DATA_NUM_ENTS,
     DATA_SPAWN_LIST,
     DATA_LAST_SPAWN,
+    DATA_SPAWN_HASH,
+    DATA_NPC_HASH,
     DATA_END
 };
 

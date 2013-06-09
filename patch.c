@@ -70,7 +70,7 @@ static addrmap addrs_i23[] = {
     { COHFUNC_ENT_TELEPORT, 0x004B30B0 },
     { COHFUNC_FREE_ARRAY, 0x008A2990 },
     { COHFUNC_GET_CLASS, 0x004A7AF0 },
-    { COHFUNC_GET_NPC_COSTUME, 0x004CFD80 },
+    { COHFUNC_GET_NPC_COSTUME_IDX, 0x004CFD80 },
     { COHFUNC_GET_ORIGIN, 0x004BB610 },
     { COHFUNC_HASH_LOOKUP, 0x0085ABB0 },
     { COHFUNC_INIT_KEYBINDS, 0x005C7720 },
@@ -106,12 +106,15 @@ static addrmap addrs_i24[] = {
     { COHVAR_GAME_TIME, 0x01671364 },
     { COHVAR_MAP_ROOT, 0x00F77E40 },
     { COHVAR_NOCOLL, 0x016714AC },
+    { COHVAR_NPC_LIST, 0x0168A1A0 },
     { COHVAR_PLAYER_ENT, 0x00CAF580 },
     { COHVAR_PLAYER_KBOFFSET, 0x5Ac8 },
     { COHVAR_SEEALL, 0x0167CC04 },
     { COHVAR_START_CHOICE, 0x00BB95F4 },
     { COHVAR_TARGET, 0x00F14FB0 },
     { COHFUNC_ANNOYING_ALERT, 0x005C31C0 },
+    { COHFUNC_BACKSLASH_FIX, 0x00853850 },
+        // esi: string (in and out)
     { COHFUNC_BIND, 0x005C93D0 },
     { COHFUNC_BIND_PUSH, 0x005C9340 },
     { COHFUNC_CALLOC, 0x009D630C },
@@ -122,21 +125,45 @@ static addrmap addrs_i24[] = {
     { COHFUNC_DETACH_CAMERA, 0x004DF9E0 },
     { COHFUNC_DIALOG, 0x005B6E10 },
     { COHFUNC_DIALOG_GET_TEXT, 0x005BAD80 },
+    { COHFUNC_ENT_COSTUME_UPDATED, 0x004576D0 },
+        // ecx: entity
     { COHFUNC_ENT_FREE, 0x0045F070 },
     { COHFUNC_ENT_INITCHAR, 0x00495870 },
     { COHFUNC_ENT_INITPLAYER, 0x004CE3F0 },
     { COHFUNC_ENT_MOVE, 0x004B3730 },
     { COHFUNC_ENT_NEW, 0x0045E430 },
     { COHFUNC_ENT_SET_COSTUME_DEMO, 0x00835640 },
+    { COHFUNC_ENT_SET_COSTUME_NPC_PTR, 0x004B42B0 },
+        // stack + 0: costume *POINTER*
+        // eax: entity
     { COHFUNC_ENT_SET_MATRIX, 0x004B38A0 },
         // esi: entity
         // ecx: matrix (4x3)
     { COHFUNC_ENT_TELEPORT, 0x004B3790 },
     { COHFUNC_FREE_ARRAY, 0x008A0560 },
     { COHFUNC_GET_CLASS, 0x004A7E60 },
-    { COHFUNC_GET_NPC_COSTUME, 0x004D0B80 },
+    { COHFUNC_GET_NPC_COSTUME_IDX, 0x004D0B80 },
+    { COHFUNC_GET_NPC_COSTUME_PTR, 0x004D0AF0 },
+        // edx: npc costume index
+        // esi: always 0? maybe subindex
     { COHFUNC_GET_ORIGIN, 0x004BBDC0 },
+    { COHFUNC_HASH_CLEAR, 0x008552F0 },
+        // eax: hash table
+    { COHFUNC_HASH_CREATE, 0x00855020 },
+        // stack + 0: size hint
+        // stack + 4: flags? 1 is used a lot
+        // ecx: filename
+        // edx: line number
+    { COHFUNC_HASH_FREE, 0x00855190 },
+        // esi: hash table
+    { COHFUNC_HASH_INSERT, 0x008563F0 },
+        // esi: hash table
+        // stack + 0: pointer to key (string)
+        // stack + 4: value
+        // stack + 8: replace? (bool)
     { COHFUNC_HASH_LOOKUP, 0x00856600 },
+        // edi: pointer to hash table
+        // stack + 0: pointer to key (string)
     { COHFUNC_INIT_KEYBINDS, 0x005C9050 },
     { COHFUNC_LOAD_MAP_DEMO, 0x00535650 },
     { COHFUNC_MATRIX_FROM_PYR, 0x0086BD70 },
@@ -145,6 +172,8 @@ static addrmap addrs_i24[] = {
     { COHFUNC_MOV_BY_NAME, 0x00599710 },
     { COHFUNC_RAND, 0x009D6A05 },
     { COHFUNC_STRCPY, 0x00847500 },
+    { COHFUNC_TRANSLATE, 0x0084EC20 },
+        // eax: text
     { COHFUNC_WALK_MAP, 0x0054AD90 },
     { 0, 0 }
 };

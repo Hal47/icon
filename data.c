@@ -155,6 +155,8 @@ static datamap icon_data[] = {
     { DATA_NUM_ENTS, sizeof(num_ents), &num_ents },
     { DATA_SPAWN_LIST, sizeof(DWORD), 0 },
     { DATA_LAST_SPAWN, sizeof(DWORD), 0 },
+    { DATA_SPAWN_HASH, sizeof(DWORD), 0 },
+    { DATA_NPC_HASH, sizeof(DWORD), 0 },
     { 0, 0, 0 }
 };
 
