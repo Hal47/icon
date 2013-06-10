@@ -81,6 +81,8 @@ static stringmap icon_strs[] = {
     STR(CMD_MOVENPC_HELP, "Moves the targeted NPC to your current location."),
     STR(CMD_DELETENPC, "delete_npc"),
     STR(CMD_DELETENPC_HELP, "Deletes the targeted NPC. Why would you do that?"),
+    STR(CMD_CLEARNPC, "clear_npc"),
+    STR(CMD_CLEARNPC_HELP, "Clears all NPCs from the map."),
     { 0, 0, 0 },
 };
 

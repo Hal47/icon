@@ -1482,6 +1482,19 @@ reloc reloc_cmd_deletenpc[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_clearnpc =====
+// Calling convention: stdcall
+// Handler for clearing all NPCs. Really all entities, so it gets doors, too.
+unsigned char code_cmd_clearnpc[] = {
+0xE8,RELOC,                     // CALL $clear_ents
+0xC3,                           // RETN
+};
+reloc reloc_cmd_clearnpc[] = {
+    { COH_REL, COHFUNC_CLEAR_ENTS },
+    { RELOC_END, 0 }
+};
+
+
 
 // ===== loadmap_cb =====
 // Calling convention: cdecl
@@ -1610,6 +1623,7 @@ codedef icon_code[] = {
     CODE(CMD_SPAWNNPC, cmd_spawnnpc),
     CODE(CMD_MOVENPC, cmd_movenpc),
     CODE(CMD_DELETENPC, cmd_deletenpc),
+    CODE(CMD_CLEARNPC, cmd_clearnpc),
 
     CODE(LOADMAP_CB, loadmap_cb),
     CODE(POS_UPDATE_CB, pos_update_cb),
