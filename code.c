@@ -1606,6 +1606,56 @@ reloc reloc_cmd_loadcostume[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_benpc =====
+// Calling convention: cdecl
+// Handler for the benpc command.
+unsigned char code_cmd_benpc[] = {
+0xE8,RELOC,                     // CALL $get_target
+0x68,RELOC,                     // PUSH OFFSET $param1
+0x50,                           // PUSH EAX
+0xE8,RELOC,                     // CALL $ent_npc_costume
+0xC3,                           // RETN
+};
+reloc reloc_cmd_benpc[] = {
+    { ICON_CODE_REL, CODE_GET_TARGET },
+    { ICON_DATA, DATA_PARAM1 },
+    { ICON_CODE_REL, CODE_ENT_NPC_COSTUME },
+    { RELOC_END, 0 }
+};
+
+// ===== cmd_rename =====
+// Calling convention: cdecl
+// Renames the targeted NPC. Or the player if they really want to...
+unsigned char code_cmd_rename[] = {
+0xE8,RELOC,                     // CALL $get_target
+0x8B,0x00,                      // MOV EAX, DWORD PTR [EAX]
+0xB9,RELOC,                     // MOV ECX, OFFSET $param1
+0xE8,RELOC,                     // CALL $strcpy
+0xC3,                           // RETN
+};
+reloc reloc_cmd_rename[] = {
+    { ICON_CODE_REL, CODE_GET_TARGET },
+    { ICON_DATA, DATA_PARAM1 },
+    { COH_REL, COHFUNC_STRCPY },
+    { RELOC_END, 0 }
+};
+
+// ===== cmd_accesslevel =====
+// Calling convention: cdecl
+// Gives the player the specified access level.
+unsigned char code_cmd_accesslevel[] = {
+0xA1,RELOC,                     // MOV EAX, DWORD PTR [$player_ent]
+0x8B,0x0D,RELOC,                // MOV ECX, DWORD PTR [$int_param]
+0x89,0x88,0xE4,0x00,0x00,0x00,  // MOV DWORD PTR [EAX+E4], ECX
+0xC3,                           // RETN
+};
+reloc reloc_cmd_accesslevel[] = {
+    { COH_ABS, COHVAR_PLAYER_ENT },
+    { ICON_DATA, DATA_INT_PARAM },
+    { RELOC_END, 0 }
+
+};
+
 
 // ===== loadmap_cb =====
 // Calling convention: cdecl
@@ -1736,6 +1786,9 @@ codedef icon_code[] = {
     CODE(CMD_DELETENPC, cmd_deletenpc),
     CODE(CMD_CLEARNPC, cmd_clearnpc),
     CODE(CMD_LOADCOSTUME, cmd_loadcostume),
+    CODE(CMD_BENPC, cmd_benpc),
+    CODE(CMD_RENAME, cmd_rename),
+    CODE(CMD_ACCESSLEVEL, cmd_accesslevel),
 
     CODE(LOADMAP_CB, loadmap_cb),
     CODE(POS_UPDATE_CB, pos_update_cb),

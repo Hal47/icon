@@ -87,6 +87,12 @@ static stringmap icon_strs[] = {
     STR(CMD_CLEARNPC_HELP, "Clears all NPCs from the map."),
     STR(CMD_LOADCOSTUME, "load_costume"),
     STR(CMD_LOADCOSTUME_HELP, "Loads the specified costume from the costumes/ folder and applies it to the targeted NPC, or to the player of nothing is targeted."),
+    STR(CMD_BENPC, "be_npc"),
+    STR(CMD_BENPC_HELP, "Makes the targeted NPC (or the player) use the specified NPC costume."),
+    STR(CMD_RENAME, "rename"),
+    STR(CMD_RENAME_HELP, "Renames the targeted NPC."),
+    STR(CMD_ACCESSLEVEL, "access_level"),
+    STR(CMD_ACCESSLEVEL_HELP, "Changes your client access level. Cheater."),
     { 0, 0, 0 },
 };
 
