@@ -293,6 +293,9 @@ void PatchI24() {
     // nocoll command
     bmagic(0x00BD12A4, 1, 0);
 
+    // Allow loading all override files
+    bmagic(0x887C70, 0x10C8868B, 0x10C82EEB);
+
     // turn on invert mouse
     bmagic(0x00B34E00, 0, 1);
 
