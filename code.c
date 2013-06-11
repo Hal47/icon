@@ -1376,28 +1376,16 @@ reloc reloc_cmd_randomspawn[] = {
 unsigned char code_cmd_spawnnpc[] = {
 0x55,                           // PUSH EBP
 0x89,0xE5,                      // MOV EBP, ESP
-// Allocate space for the demo costume. Zero it all out.
-0x81,0xEC,0x94,0x00,0x00,0x00,  // SUB ESP, 94
-0x89,0xF8,                      // MOV EAX, EDI
-0x89,0xE7,                      // MOV EDI, ESP
-0x50,                           // PUSH EAX     ; preserve EDI for stdcall
-0xB9,0x25,0x00,0x00,0x00,       // MOV ECX, 25
-0x31,0xC0,                      // XOR EAX, EAX
-0xF3,0xAB,                      // REP STOSD [EDI]
-0x5F,                           // POP EDI
 // First see if this costume exists and the user actually specified a name.
-// NPC ID goes at offset 88 of the demo costume info, which starts at EBP-94
-0x8D,0x45,0xF4,                 // LEA EAX, [EBP-0C]
-0x50,                           // PUSH EAX
 0x68,RELOC,                     // PUSH OFFSET $param1
-0xE8,RELOC,                     // CALL $get_npc_costume
-0x83,0xC4,0x08,                 // ADD ESP, 8
+0x6A,0x00,                      // PUSH 0       ; check only
+0xE8,RELOC,                     // CALL $ent_npc_costume
 // Test the first byte of param2 to make sure it's not NULL.
 0xB9,RELOC,                     // MOV ECX, OFFSET $param2
 0x0F,0xB6,0x11,                 // MOVZX EDX, BYTE PTR [ECX]
 0x85,0xD2,                      // TEST EDX, EDX
 0x74,0x04,                      // JZ SHORT bad
-// Also test return value of get_npc_costume.
+// Also test return value of ent_npc_costume.
 0x85,0xC0,                      // TEST EAX, EAX
 0x75,0x02,                      // JNZ short paramsok
 // bad:
@@ -1411,10 +1399,9 @@ unsigned char code_cmd_spawnnpc[] = {
 0xE8,RELOC,                     // CALL $create_ent
 0x50,                           // PUSH EAX     ; for later call to move_ent
 // Abuse demo playback's costume setting thing.
+0x68,RELOC,                     // PUSH OFFSET $param1
 0x50,                           // PUSH EAX
-0x8D,0x85,0x6C,0xFF,0xFF,0xFF,  // LEA EAX, [EBP-94]
-0xE8,RELOC,                     // CALL $ent_set_costume_demo
-0x83,0xC4,0x04,                 // ADD ESP, 4
+0xE8,RELOC,                     // CALL $ent_npc_costume
 // Now move the newly created entity to the player.
 0xE8,RELOC,                     // CALL $move_ent_to_player
 
@@ -1423,10 +1410,11 @@ unsigned char code_cmd_spawnnpc[] = {
 };
 reloc reloc_cmd_spawnnpc[] = {
     { ICON_DATA, DATA_PARAM1 },
-    { COH_REL, COHFUNC_GET_NPC_COSTUME_IDX },
+    { ICON_CODE_REL, CODE_ENT_NPC_COSTUME },
     { ICON_DATA, DATA_PARAM2 },
     { ICON_CODE_REL, CODE_CREATE_ENT },
-    { COH_REL, COHFUNC_ENT_SET_COSTUME_DEMO },
+    { ICON_DATA, DATA_PARAM1 },
+    { ICON_CODE_REL, CODE_ENT_NPC_COSTUME },
     { ICON_CODE_REL, CODE_MOVE_ENT_TO_PLAYER },
     { RELOC_END, 0 }
 };

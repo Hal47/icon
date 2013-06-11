@@ -65,7 +65,6 @@ static addrmap addrs_i23[] = {
     { COHFUNC_ENT_INITPLAYER, 0x004CD5F0 },
     { COHFUNC_ENT_MOVE, 0x004B3050 },
     { COHFUNC_ENT_NEW, 0x0045E340 },
-    { COHFUNC_ENT_SET_COSTUME_DEMO, 0x00838240 },
     { COHFUNC_ENT_SET_MATRIX, 0x004B31C0 },
     { COHFUNC_ENT_TELEPORT, 0x004B30B0 },
     { COHFUNC_FREE_ARRAY, 0x008A2990 },
@@ -156,7 +155,6 @@ static addrmap addrs_i24[] = {
     { COHFUNC_ENT_SET_COSTUME, 0x004B4300 },
         // eax: entity
         // edx: costume
-    { COHFUNC_ENT_SET_COSTUME_DEMO, 0x00835640 },
     { COHFUNC_ENT_SET_COSTUME_NPC_PTR, 0x004B42B0 },
         // stack + 0: costume *POINTER*
         // eax: entity
