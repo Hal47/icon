@@ -9,7 +9,8 @@
  */
 
 enum {
-    STR_NOCLIP_ON = 1,
+    STR_ICON_VERSION = 1,
+    STR_NOCLIP_ON,
     STR_NOCLIP_OFF,
     STR_MAPFILE,
     STR_MOV,

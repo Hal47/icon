@@ -135,6 +135,12 @@ static unsigned char code_enter_game[] = {
 
 0xE8,RELOC,                         // CALL $setup_binds
 
+// Show the welcome message.
+0x68,0xFF,0x00,0xFF,0xFF,           // PUSH FFFF00FF
+0x68,RELOC,                         // PUSH OFFSET $icon_version
+0xE8,RELOC,                         // CALL annoying_alert
+0x83,0xC4,0x08,                     // ADD ESP,8
+
 // out:
 0x61,                               // POPAD
 0xC3,                               // RETN
@@ -166,6 +172,8 @@ reloc reloc_enter_game[] = {
     { COH_ABS, COHVAR_ENTTBL },
     { COH_ABS, COHVAR_EDIT_TRANSFORM_ABS },
     { ICON_CODE_REL, CODE_SETUP_BINDS },
+    { ICON_STR, STR_ICON_VERSION },
+    { COH_REL, COHFUNC_ANNOYING_ALERT },
     { RELOC_END, 0 }
 };
 

@@ -29,6 +29,7 @@ typedef struct {
 
 #define STR(id, s) { STR_##id, s, sizeof(s) }
 static stringmap icon_strs[] = {
+    STR(ICON_VERSION, "Welcome to Icon 1.7!"),
     STR(NOCLIP_ON, "Noclip Enabled"),
     STR(NOCLIP_OFF, "Noclip Disabled"),
     STR(MAPFILE, "Enter a map file name:"),
