@@ -1017,7 +1017,6 @@ reloc reloc_ent_npc_costume[] = {
     { RELOC_END, 0 }
 };
 
-
 // ===== move_ent_to_player =====
 // Calling convention: stdcall
 // Parameters:
@@ -1494,6 +1493,118 @@ reloc reloc_cmd_clearnpc[] = {
     { RELOC_END, 0 }
 };
 
+// ===== cmd_loadcostume =====
+// Calling convention: stdcall
+// Handler for loading a costume onto the targeted NPC (or the player).
+unsigned char code_cmd_loadcostume[] = {
+0x57,                           // PUSH EDI
+0x56,                           // PUSH ESI
+0x55,                           // PUSH EBP
+0x89,0xE5,                      // MOV EBP, ESP
+
+// Make room for a temporary costume structure and a MAX_PATH filename.
+0x81,0xEC,0x50,0x02,0x00,0x00,  // SUB ESP, 250
+0x89,0xE7,                      // MOV EDI, ESP
+// Initialize it.
+0x57,                           // PUSH EDI
+0x68,RELOC,                     // PUSH $schema_costume
+0x57,                           // PUSH EDI
+0x68,RELOC,                     // PUSH $schema_costume
+0xE8,RELOC,                     // CALL $bin_clear
+0xE8,RELOC,                     // CALL $bin_init
+0x83,0xC4,0x10,                 // ADD ESP, 10
+
+// Get costume path pointer and copy to local storage. Just do the whole
+// thing because this is called once in a blue moon and it's static anyway.
+0x57,                           // PUSH EDI
+0xE8,RELOC,                     // CALL $costume_dir
+0x89,0xC6,                      // MOV ESI, EAX
+0x8D,0xBD,0xFC,0xFE,0xFF,0xFF,  // LEA EDI, [EBP-104]
+0x57,                           // PUSH EDI
+0xB9,0x04,0x01,0x00,0x00,       // MOV ECX, 104
+0xF3,0xA4,                      // REP MOVSB
+0x5E,                           // POP ESI          ; EBP-104
+0x5F,                           // POP EDI
+
+// This is a somewhat inefficient way to add '/', but saves me from having
+// to dig for yet another standard library function in the COH exe.
+0x68,RELOC,                     // PUSH OFFSET $slash
+0x68,0x04,0x01,0x00,0x00,       // PUSH 104 (MAX_PATH)
+0x56,                           // PUSH ESI
+0xE8,RELOC,                     // CALL $strcat_s
+// Now add the provided filename.
+0x68,RELOC,                     // PUSH OFFSET $param1
+0x68,0x04,0x01,0x00,0x00,       // PUSH 104 (MAX_PATH)
+0x56,                           // PUSH ESI
+0xE8,RELOC,                     // CALL $strcat_s
+// Finally, tack on .costume.
+0x68,RELOC,                     // PUSH OFFSET $dotcostume
+0x68,0x04,0x01,0x00,0x00,       // PUSH 104 (MAX_PATH)
+0x56,                           // PUSH ESI
+0xE8,RELOC,                     // CALL $strcat_s
+0x83,0xC4,0x24,                 // ADD ESP, 24
+
+// Load the provided file.
+0x6A,0x00,                      // PUSH 0
+0x6A,0x00,                      // PUSH 0
+0x6A,0x00,                      // PUSH 0
+0x57,                           // PUSH EDI         ; output
+0x68,RELOC,                     // PUSH OFFSET $schema_costume
+0x6A,0x00,                      // PUSH 0
+0x6A,0x00,                      // PUSH 0
+0x56,                           // PUSH ESI         ; filename
+0x6A,0x00,                      // PUSH 0
+0xE8,RELOC,                     // CALL $bin_loadfile
+0x83,0xC4,0x24,                 // ADD ESP, 24
+0x85,0xC0,                      // TEST EAX, EAX
+0x74,0x29,                      // JZ out
+
+// Costume was loaded successfully, apply it to the entity.
+0xE8,RELOC,                     // CALL $get_target
+0x50,                           // PUSH EAX
+0x89,0xC6,                      // MOV ESI, EAX
+0x89,0xF8,                      // MOV EAX, EDI
+0xE8,RELOC,                     // CALL $ent_prepare_costume
+0x89,0xC2,                      // MOV EDX, EAX
+0x58,                           // POP EAX
+0xE8,RELOC,                     // CALL $ent_set_costume
+
+0x89,0xF1,                      // MOV ECX, ESI         ; entity
+0xE8,RELOC,                     // CALL $ent_costume_updated
+
+// Clean up the temporary struct.
+0x57,                           // PUSH EDI
+0x68,RELOC,                     // PUSH $schema_costume
+0xE8,RELOC,                     // CALL $bin_clear
+
+// out:
+0xC9,                           // LEAVE
+0x5E,                           // POP ESI
+0x5F,                           // POP EDI
+0xC3,                           // RETN
+};
+reloc reloc_cmd_loadcostume[] = {
+    { COH_ABS, COHVAR_SCHEMA_COSTUME },
+    { COH_ABS, COHVAR_SCHEMA_COSTUME },
+    { COH_REL, COHFUNC_BIN_CLEAR },
+    { COH_REL, COHFUNC_BIN_INIT },
+    { COH_REL, COHFUNC_COSTUME_DIR },
+    { ICON_STR, STR_SLASH },
+    { COH_REL, COHFUNC_STRCAT_S },
+    { ICON_DATA, DATA_PARAM1 },
+    { COH_REL, COHFUNC_STRCAT_S },
+    { ICON_STR, STR_DOTCOSTUME },
+    { COH_REL, COHFUNC_STRCAT_S },
+    { COH_ABS, COHVAR_SCHEMA_COSTUME },
+    { COH_REL, COHFUNC_BIN_LOADFILE },
+    { ICON_CODE_REL, CODE_GET_TARGET },
+    { COH_REL, COHFUNC_ENT_PREPARE_COSTUME },
+    { COH_REL, COHFUNC_ENT_SET_COSTUME },
+    { COH_REL, COHFUNC_ENT_COSTUME_UPDATED },
+    { COH_ABS, COHVAR_SCHEMA_COSTUME },
+    { COH_REL, COHFUNC_BIN_CLEAR },
+    { RELOC_END, 0 }
+};
 
 
 // ===== loadmap_cb =====
@@ -1624,6 +1735,7 @@ codedef icon_code[] = {
     CODE(CMD_MOVENPC, cmd_movenpc),
     CODE(CMD_DELETENPC, cmd_deletenpc),
     CODE(CMD_CLEARNPC, cmd_clearnpc),
+    CODE(CMD_LOADCOSTUME, cmd_loadcostume),
 
     CODE(LOADMAP_CB, loadmap_cb),
     CODE(POS_UPDATE_CB, pos_update_cb),

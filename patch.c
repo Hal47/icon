@@ -109,18 +109,36 @@ static addrmap addrs_i24[] = {
     { COHVAR_NPC_LIST, 0x0168A1A0 },
     { COHVAR_PLAYER_ENT, 0x00CAF580 },
     { COHVAR_PLAYER_KBOFFSET, 0x5Ac8 },
+    { COHVAR_SCHEMA_COSTUME, 0x00BC0F20 },
     { COHVAR_SEEALL, 0x0167CC04 },
     { COHVAR_START_CHOICE, 0x00BB95F4 },
     { COHVAR_TARGET, 0x00F14FB0 },
     { COHFUNC_ANNOYING_ALERT, 0x005C31C0 },
     { COHFUNC_BACKSLASH_FIX, 0x00853850 },
         // esi: string (in and out)
+    { COHFUNC_BIN_CLEAR, 0x0086FF00 },
+        // stack + 0: schema
+        // stack + 4: struct
+    { COHFUNC_BIN_INIT, 0x0086FEA0 },
+        // stack + 0: schema
+        // stack + 4: struct
+    { COHFUNC_BIN_LOADFILE, 0x00872C00 },
+        // stack + 00: dir
+        // stack + 04: filename
+        // stack + 08: unknown (0)
+        // stack + 0C: flags
+        // stack + 10: schema
+        // stack + 14: output struct ptr
+        // stack + 18: unknown (0)
+        // stack + 1C: unknown (0)
+        // stack + 20: unknown (0)
     { COHFUNC_BIND, 0x005C93D0 },
     { COHFUNC_BIND_PUSH, 0x005C9340 },
     { COHFUNC_CALLOC, 0x009D630C },
     { COHFUNC_CLEAR_ENTS, 0x0045EF60 },
     { COHFUNC_CMD_INIT, 0x008633C0 },
     { COHFUNC_CMD_PARSE, 0x00862D30 },
+    { COHFUNC_COSTUME_DIR, 0x0071ADF0 },
     { COHFUNC_COPY_ATTRIBS, 0x00495C90 },
     { COHFUNC_DETACH_CAMERA, 0x004DF9E0 },
     { COHFUNC_DIALOG, 0x005B6E10 },
@@ -132,6 +150,12 @@ static addrmap addrs_i24[] = {
     { COHFUNC_ENT_INITPLAYER, 0x004CE3F0 },
     { COHFUNC_ENT_MOVE, 0x004B3730 },
     { COHFUNC_ENT_NEW, 0x0045E430 },
+    { COHFUNC_ENT_PREPARE_COSTUME, 0x004B4380 },
+        // eax: costume
+        // esi: entity
+    { COHFUNC_ENT_SET_COSTUME, 0x004B4300 },
+        // eax: entity
+        // edx: costume
     { COHFUNC_ENT_SET_COSTUME_DEMO, 0x00835640 },
     { COHFUNC_ENT_SET_COSTUME_NPC_PTR, 0x004B42B0 },
         // stack + 0: costume *POINTER*
@@ -171,6 +195,10 @@ static addrmap addrs_i24[] = {
     { COHFUNC_MAP_CLEAR, 0x0053BFC0 },
     { COHFUNC_MOV_BY_NAME, 0x00599710 },
     { COHFUNC_RAND, 0x009D6A05 },
+    { COHFUNC_STRCAT_S, 0x009DC76F },
+        // stack + 0: dest
+        // stack + 4: size
+        // stack + 8: source
     { COHFUNC_STRCPY, 0x00847500 },
     { COHFUNC_TRANSLATE, 0x0084EC20 },
         // eax: text

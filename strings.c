@@ -50,6 +50,8 @@ static stringmap icon_strs[] = {
     STR(DOOR, "Door"),
     STR(GENERATOR, "Generator"),
     STR(DUMMY_FILENAME, "icon.c"),
+    STR(SLASH, "/"),
+    STR(DOTCOSTUME, ".costume"),
     STR(CMD_MAPDEV, "map_dev"),
     STR(CMD_MAPDEV_HELP, "Toggles display of hidden developer markers."),
     STR(CMD_NOCLIP, "no_clip"),
@@ -83,6 +85,8 @@ static stringmap icon_strs[] = {
     STR(CMD_DELETENPC_HELP, "Deletes the targeted NPC. Why would you do that?"),
     STR(CMD_CLEARNPC, "clear_npc"),
     STR(CMD_CLEARNPC_HELP, "Clears all NPCs from the map."),
+    STR(CMD_LOADCOSTUME, "load_costume"),
+    STR(CMD_LOADCOSTUME_HELP, "Loads the specified costume from the costumes/ folder and applies it to the targeted NPC, or to the player of nothing is targeted."),
     { 0, 0, 0 },
 };
 
