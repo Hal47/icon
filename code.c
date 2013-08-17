@@ -256,20 +256,7 @@ unsigned char code_setup_binds[] = {
 0x68,RELOC,                         // PUSH $commands
 0xE8,RELOC,                         // CALL $cmd_init
 0x83,0xC4,0x04,                     // ADD ESP, 4
-// Allocate room for a keybind profile.
-0x68,0x10,0x30,0x00,0x00,           // PUSH 3010
-0x6A,0x01,                          // PUSH 1
-0xE8,RELOC,                         // CALL $calloc
-0x83,0xC4,0x08,                     // ADD ESP,8
-0xA3,RELOC,                         // MOV DWORD PTR [$binds], EAX
-// Add the new profile to the top of the stack.
-0xE8,RELOC,                         // CALL $bind_push
-0xA1,RELOC,                         // MOV EAX, DWORD PTR [$binds]
-// 2 = flag for fallthrough to other profiles.
-0xC6,0x00,0x02,                     // MOV BYTE PTR [EAX], 2
-// Associate our handler callback.
-0xBA,RELOC,                         // MOV EDX, $cmd_handler
-0x89,0x90,0x08,0x30,0x00,0x00,      // MOV DWORD PTR [EAX+3008], EDX
+
 0xBF,RELOC,                         // MOV EDI, OFFSET $bind_list
 // loop:
 // Iterate through the bind list {name, callback} and add them.
@@ -284,18 +271,15 @@ unsigned char code_setup_binds[] = {
 0x83,0xC7,0x08,                     // ADD EDI, 8
 0xEB,0xE7,                          // JMP SHORT loop
 // done:
+0xC6,0x05,RELOC,0x01,               // MOV BYTE PTR [$bind_init], 1
 0xC3,                               // RETN
 };
 reloc reloc_setup_binds[] = {
     { ICON_DATA, DATA_COMMANDS },
     { COH_REL, COHFUNC_CMD_INIT },
-    { COH_REL, COHFUNC_CALLOC },
-    { ICON_DATA, DATA_BINDS },
-    { COH_REL, COHFUNC_BIND_PUSH },
-    { ICON_DATA, DATA_BINDS },
-    { ICON_CODE_ABS, CODE_CMD_HANDLER },
     { ICON_DATA, DATA_BIND_LIST },
     { COH_REL, COHFUNC_BIND },
+    { ICON_DATA, DATA_BIND_INIT },
 
     { RELOC_END, 0 }
 };
@@ -360,6 +344,53 @@ reloc reloc_cmd_handler[] = {
     { COH_REL, COHFUNC_CMD_PARSE },
     { IMMEDIATE, CODE_END },
     { ICON_DATA, DATA_COMMAND_FUNCS },
+    { RELOC_END, 0 }
+};
+
+// ===== cmd_hook =====
+// Calling convention: Custom
+// Hook function that replaces chkstk call in the main command handler.
+// Does nasty things with the stack.
+unsigned char code_cmd_hook[] = {
+// Save register parameter to chkstk.
+0x89,0xC3,                      // MOV EBX, EAX
+
+// Make sure to do nothing until icon binds are initialized.
+0xF6,0x05,RELOC,0x01,           // TEST BYTE PTR [$bind_init], 1
+0x74,0x1A,                      // JZ SHORT out
+
+// Duplicate the three stack parameters the command handler was called with.
+0x89,0xE0,                      // MOV EAX, ESP
+0xFF,0x70,0x14,                 // PUSH DWORD PTR [EAX+14]
+0xFF,0x70,0x10,                 // PUSH DWORD PTR [EAX+10]
+0xFF,0x70,0x0C,                 // PUSH DWORD PTR [EAX+0C]
+0xE8,RELOC,                     // CALL $cmd_handler
+0x83,0xC4,0x0C,                 // ADD ESP, 0C
+
+// cmd_handler didn't find the command, so pass control back to the game's
+// default command handler (that called this hook).
+0x85,0xC0,                      // TEST EAX, EAX
+0x74,0x03,                      // JZ SHORT out
+
+// If Icon's cmd_handler claimed the command, we need to exit early and
+// bypass the rest of the game's default handler. To do this, we must move
+// the stack past our own return address, pop EBP that was pushed by the
+// command handler, and then return directly to its caller.
+0x5D,                           // POP EBP      ; short for ADD ESP, 4
+0x5D,                           // POP EBP
+0xC3,                           // RETN
+
+// out:
+// We're returning control to the command handler, so trampoline to chkstk
+// after restoring EAX. It will return to the address we were called from.
+0x89,0xD8,                      // MOV EAX, EBX
+0xE9,RELOC,                     // JMP $chkstk
+0x90,                           // NOP
+};
+reloc reloc_cmd_hook[] = {
+    { ICON_DATA, DATA_BIND_INIT },
+    { ICON_CODE_REL, CODE_CMD_HANDLER },
+    { COH_REL, COHFUNC_CHKSTK },
     { RELOC_END, 0 }
 };
 
@@ -1750,6 +1781,7 @@ codedef icon_code[] = {
     CODE(ICON_INIT, icon_init),
     CODE(SETUP_BINDS, setup_binds),
     CODE(CMD_HANDLER, cmd_handler),
+    CODE(CMD_HOOK, cmd_hook),
     CODE(GENERIC_MOV, generic_mov),
     CODE(GET_TARGET, get_target),
     CODE(LOADMAP, loadmap),

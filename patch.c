@@ -60,6 +60,7 @@ static addrmap addrs_i23[] = {
     { COHFUNC_BIND, 0x005C7AA0 },
     { COHFUNC_BIND_PUSH, 0x005C7A10 },
     { COHFUNC_CALLOC, 0x009D801C },
+    { COHFUNC_CHKSTK, 0x009E0440 },
     { COHFUNC_CLEAR_ENTS, 0x0045EE70 },
     { COHFUNC_CMD_INIT, 0x00868030 },
     { COHFUNC_CMD_PARSE, 0x008679A0 },
@@ -152,6 +153,7 @@ static addrmap addrs_i24[] = {
     { COHFUNC_BIND, 0x005C93D0 },
     { COHFUNC_BIND_PUSH, 0x005C9340 },
     { COHFUNC_CALLOC, 0x009D630C },
+    { COHFUNC_CHKSTK, 0x009DE710 },
     { COHFUNC_CLEAR_ENTS, 0x0045EF60 },
     { COHFUNC_CMD_INIT, 0x008633C0 },
     { COHFUNC_CMD_PARSE, 0x00862D30 },
@@ -315,6 +317,9 @@ void PatchI24() {
     // turn on invert mouse
     bmagic(0x00B34E00, 0, 1);
 
+    // Hook main command handler
+    PutCall(0x004165BD, CodeAddr(CODE_CMD_HOOK));
+
     // Hook "enter game"
     PutCall(0x004CC60B, CodeAddr(CODE_ENTER_GAME));
     bmagic(0x004CC610, 0xC01BD8F7, 0xC4A3C031);
@@ -421,6 +426,9 @@ void PatchI23() {
 
     // turn on invert mouse
     bmagic(0x00B349F0, 0, 1);
+
+    // Hook main command handler
+    PutCall(0x0041655D, CodeAddr(CODE_CMD_HOOK));
 
     // Hook "enter game"
     PutCall(0x004CB80B, CodeAddr(CODE_ENTER_GAME));

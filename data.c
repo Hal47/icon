@@ -140,8 +140,8 @@ int num_ents = 2;
 static datamap icon_data[] = {
     { DATA_ZONE_MAP, 6*sizeof(DWORD), 0 },
     { DATA_SPAWNCOORDS, sizeof(spawncoords), spawncoords },
+    { DATA_BIND_INIT, sizeof(int), 0 },
     { DATA_BIND_LIST, sizeof(icon_bind_list), icon_bind_list },
-    { DATA_BINDS, sizeof(DWORD), 0 },
     { DATA_COMMANDS, sizeof(icon_commands), icon_commands },
     { DATA_COMMAND_LIST, sizeof(icon_command_list), &icon_command_list },
     { DATA_COMMAND_FUNCS, CODE_END*sizeof(DWORD), 0 },
